@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chromium } from "playwright";
+import { chromium, type Browser, type BrowserContext } from "playwright";
 import { createCheckpointStore } from "./state/checkpoint.js";
 import { downloadChapterImages } from "./download/chapterDownloader.js";
 import { discoverChapters } from "./site2025copy/discoverChapters.js";
@@ -12,6 +12,21 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function emitJsonEvent(config: DownloaderConfig, payload: Record<string, unknown>): void {
+  if (!config.eventsJson) {
+    return;
+  }
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+function reportCleanupError(config: DownloaderConfig, scope: "context" | "browser", error: unknown): void {
+  if (config.eventsJson) {
+    process.stderr.write(`[cleanup:${scope}] ${error instanceof Error ? error.message : String(error)}\n`);
+    return;
+  }
+  console.warn(`[cleanup:${scope}]`, error);
 }
 
 export async function runDiscoverOnly(config: DownloaderConfig): Promise<void> {
@@ -40,13 +55,22 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
   await mkdir(outputRoot, { recursive: true });
 
   const startedAt = new Date().toISOString();
-  const browser = await chromium.launch({ headless: config.headless });
-  const context = await browser.newContext({ userAgent: config.userAgent });
-  const page = await context.newPage();
+  emitJsonEvent(config, {
+    type: "run.start",
+    comicUrl: config.url,
+    outputRoot,
+    startedAt
+  });
 
   const chapterSummaries: RunSummary["chapters"] = [];
+  let browser: Browser | undefined;
+  let context: BrowserContext | undefined;
 
   try {
+    browser = await chromium.launch({ headless: config.headless });
+    context = await browser.newContext({ userAgent: config.userAgent });
+    const page = await context.newPage();
+
     const allChapters = await discoverChapters(page, config.url);
     const selected =
       config.maxChapters && config.maxChapters > 0 ? allChapters.slice(0, config.maxChapters) : allChapters;
@@ -55,8 +79,20 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
       const chapter = selected[i];
       const chapterFolderName = `${String(i + 1).padStart(3, "0")}-${sanitizePathSegment(chapter.title)}`;
       const chapterDir = join(outputRoot, chapterFolderName);
+      const chapterStartedAt = new Date().toISOString();
 
-      console.log(`[${i + 1}/${selected.length}] ${chapter.title}`);
+      emitJsonEvent(config, {
+        type: "chapter.start",
+        index: i + 1,
+        totalChapters: selected.length,
+        chapterTitle: chapter.title,
+        chapterUrl: chapter.url,
+        startedAt: chapterStartedAt
+      });
+
+      if (!config.eventsJson) {
+        console.log(`[${i + 1}/${selected.length}] ${chapter.title}`);
+      }
 
       try {
         const images = await extractChapterImages(page, chapter.url, config.timeoutMs);
@@ -78,8 +114,23 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
 
         chapterSummaries.push(chapterSummary);
         await writeFile(join(chapterDir, "chapter-summary.json"), JSON.stringify(chapterSummary, null, 2), "utf8");
+
+        emitJsonEvent(config, {
+          type: "chapter.done",
+          index: i + 1,
+          totalChapters: selected.length,
+          chapterTitle: chapter.title,
+          chapterUrl: chapter.url,
+          startedAt: chapterStartedAt,
+          finishedAt: new Date().toISOString(),
+          extractedCount: chapterSummary.extractedCount,
+          downloadedCount: chapterSummary.downloadedCount,
+          skippedCount: chapterSummary.skippedCount,
+          failedCount: chapterSummary.failedCount,
+          status: chapterSummary.failedCount > 0 ? "failed" : "ok"
+        });
       } catch (error) {
-        chapterSummaries.push({
+        const chapterSummary = {
           chapterTitle: chapter.title,
           chapterUrl: chapter.url,
           chapterDir,
@@ -94,14 +145,49 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
               reason: error instanceof Error ? error.message : String(error)
             }
           ]
+        };
+
+        chapterSummaries.push(chapterSummary);
+        emitJsonEvent(config, {
+          type: "chapter.done",
+          index: i + 1,
+          totalChapters: selected.length,
+          chapterTitle: chapter.title,
+          chapterUrl: chapter.url,
+          startedAt: chapterStartedAt,
+          finishedAt: new Date().toISOString(),
+          extractedCount: chapterSummary.extractedCount,
+          downloadedCount: chapterSummary.downloadedCount,
+          skippedCount: chapterSummary.skippedCount,
+          failedCount: chapterSummary.failedCount,
+          status: "failed",
+          error: chapterSummary.failures[0]?.reason
         });
       }
 
       await delay(config.chapterDelayMs);
     }
+  } catch (error) {
+    emitJsonEvent(config, {
+      type: "run.error",
+      comicUrl: config.url,
+      outputRoot,
+      startedAt,
+      error: error instanceof Error ? error.message : String(error),
+      failedAt: new Date().toISOString()
+    });
+    throw error;
   } finally {
-    await context.close();
-    await browser.close();
+    if (context) {
+      await context.close().catch((error) => {
+        reportCleanupError(config, "context", error);
+      });
+    }
+    if (browser) {
+      await browser.close().catch((error) => {
+        reportCleanupError(config, "browser", error);
+      });
+    }
   }
 
   const finishedAt = new Date().toISOString();
@@ -119,5 +205,15 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
   };
 
   await writeFile(join(outputRoot, "run-summary.json"), JSON.stringify(runSummary, null, 2), "utf8");
+  emitJsonEvent(config, {
+    type: "run.done",
+    comicUrl: config.url,
+    outputRoot,
+    startedAt,
+    finishedAt,
+    totalChapters: runSummary.totalChapters,
+    successChapters: runSummary.successChapters,
+    failedChapters: runSummary.failedChapters
+  });
   return runSummary;
 }

@@ -1,0 +1,39 @@
+# downloader-desktop
+
+Electron + React desktop UI for the 2025copy downloader.
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Test and Build
+
+```bash
+npm test
+npx tsc --noEmit
+npm run build
+```
+
+## Packaging
+
+```bash
+npm run package -- --dir
+```
+
+To generate installable artifacts:
+
+```bash
+npm run package -- --publish never
+```
+
+## Dev Smoke Checklist
+
+1. Open app in development mode.
+2. Fill URL with `https://www.2025copy.com/comic/guichuyinxiong`.
+3. Select output directory.
+4. Set small range in downloader debug run (for example max 3 chapters in adapter mode).
+5. Start download and confirm progress/log/status updates.
+6. Stop and rerun, verify resume behavior (`skipped` increases).

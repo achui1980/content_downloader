@@ -29,6 +29,23 @@ Optional flags:
 - `--max-chapters 3`
 - `--no-headless`
 - `--mode discover`
+- `--events-json` (emit machine-readable JSON line events)
+
+## JSON Event Mode
+
+Use this for desktop integration:
+
+```bash
+npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong" --events-json
+```
+
+Example event lines:
+
+- `{"type":"run.start",...}`
+- `{"type":"chapter.start",...}`
+- `{"type":"chapter.done",...}`
+- `{"type":"run.done",...}`
+- `{"type":"run.error",...}`
 
 ## Output
 

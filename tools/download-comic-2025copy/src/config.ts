@@ -8,6 +8,7 @@ export interface CliArgs {
   timeoutMs?: number;
   headless?: boolean;
   maxChapters?: number;
+  eventsJson?: boolean;
   mode?: "download" | "discover";
   help?: boolean;
 }
@@ -54,6 +55,7 @@ export function createConfig(input: CliArgs): DownloaderConfig {
     timeoutMs,
     headless,
     maxChapters: input.maxChapters,
+    eventsJson: input.eventsJson ?? false,
     userAgent: DEFAULT_USER_AGENT,
     chapterDelayMs: 300
   };

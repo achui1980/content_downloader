@@ -8,6 +8,7 @@ export interface DownloaderConfig {
   maxChapters?: number;
   userAgent: string;
   chapterDelayMs: number;
+  eventsJson?: boolean;
 }
 
 export interface Chapter {

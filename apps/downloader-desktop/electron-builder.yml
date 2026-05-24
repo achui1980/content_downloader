@@ -1,0 +1,30 @@
+appId: com.achui.downloader.desktop
+productName: Downloader Desktop
+
+directories:
+  output: release
+
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+
+extraResources:
+  - from: ../../tools/download-comic-2025copy
+    to: downloader-tool
+    filter:
+      - dist/**
+      - node_modules/**
+      - package.json
+
+mac:
+  target:
+    - dmg
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage

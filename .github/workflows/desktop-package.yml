@@ -1,0 +1,51 @@
+name: desktop-package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/downloader-desktop/**"
+      - ".github/workflows/desktop-package.yml"
+
+jobs:
+  package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    defaults:
+      run:
+        working-directory: apps/downloader-desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/downloader-desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare downloader tool runtime
+        run: npm ci --prefix tools/download-comic-2025copy && PLAYWRIGHT_BROWSERS_PATH=0 npm exec --prefix tools/download-comic-2025copy playwright install chromium && npm run build --prefix tools/download-comic-2025copy
+        working-directory: .
+
+      - name: Build renderer and electron
+        run: npm run build
+
+      - name: Package
+        run: npm run package -- --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: downloader-desktop-${{ matrix.os }}
+          path: apps/downloader-desktop/release/**

@@ -47,6 +47,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case "--no-headless":
         args.headless = false;
         break;
+      case "--events-json":
+        args.eventsJson = true;
+        break;
       case "--help":
       case "-h":
         args.help = true;
@@ -74,6 +77,7 @@ Optional:
   --headless              run browser headless
   --no-headless           run browser headed
   --mode discover         chapter discovery only
+  --events-json           emit JSON line events for download runs
 `);
 }
 
@@ -92,8 +96,10 @@ async function main(): Promise<void> {
   }
 
   const summary = await runDownloader(config);
-  console.log(`Finished. Success chapters: ${summary.successChapters}, failed chapters: ${summary.failedChapters}`);
-  console.log(`Output: ${summary.outputRoot}`);
+  if (!config.eventsJson) {
+    console.log(`Finished. Success chapters: ${summary.successChapters}, failed chapters: ${summary.failedChapters}`);
+    console.log(`Output: ${summary.outputRoot}`);
+  }
 }
 
 function isDirectExecution(): boolean {

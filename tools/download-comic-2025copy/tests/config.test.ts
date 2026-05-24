@@ -12,6 +12,21 @@ describe("parseCliArgs", () => {
     expect(config.retries).toBe(3);
     expect(config.timeoutMs).toBe(15000);
     expect(config.headless).toBe(true);
+    expect(config.eventsJson).toBe(false);
+  });
+
+  it("parses --events-json flag", () => {
+    const parsed = parseCliArgs(["--url", "https://www.2025copy.com/comic/guichuyinxiong", "--events-json"]);
+    const config = createConfig(parsed);
+
+    expect(parsed.eventsJson).toBe(true);
+    expect(config.eventsJson).toBe(true);
+  });
+
+  it("does not enable events json by default", () => {
+    const parsed = parseCliArgs(["--url", "https://www.2025copy.com/comic/guichuyinxiong"]);
+
+    expect(parsed.eventsJson).toBeUndefined();
   });
 
   it("rejects non-2025copy URL", () => {
