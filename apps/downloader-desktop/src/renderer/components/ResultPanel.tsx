@@ -7,10 +7,12 @@ interface ResultPanelProps {
 
 export function ResultPanel(props: ResultPanelProps) {
   return (
-    <section>
+    <section className="card">
       <h2>Result</h2>
-      <p>State: {props.status}</p>
-      <p>{props.message ?? "No result yet."}</p>
+      <p>
+        State <span className={`status-pill status-pill--${props.status}`}>{props.status}</span>
+      </p>
+      <p className="result-message">{props.message ?? "No result yet."}</p>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from "react";
-import type { StartInput } from "../shared/contracts";
+import { buildDefaultStartInput, type StartInput } from "../shared/contracts";
 import type { DownloaderPreloadApi } from "../preload/index";
+import { validateStartInput } from "../shared/validation";
 import { DownloadForm } from "./components/DownloadForm";
 import { ProgressPanel } from "./components/ProgressPanel";
 import { LogPanel } from "./components/LogPanel";
@@ -13,17 +14,12 @@ declare global {
   }
 }
 
-const initialInput: StartInput = {
-  url: "",
-  outputDir: "",
-  concurrency: 4,
-  retries: 3
-};
-
 export function App() {
   const [state, dispatch] = useReducer(reduceAppState, undefined, createInitialAppState);
-  const [input, setInput] = useState<StartInput>(initialInput);
+  const [input, setInput] = useState<StartInput>(buildDefaultStartInput);
+  const [hasTriedStart, setHasTriedStart] = useState(false);
   const api = window.downloader;
+  const validation = validateStartInput(input);
 
   useEffect(() => {
     if (!api) {
@@ -66,6 +62,7 @@ export function App() {
   }, [api]);
 
   function updateInput(field: keyof StartInput, value: string | number): void {
+    setHasTriedStart(false);
     setInput((prev) => ({
       ...prev,
       [field]: value
@@ -73,8 +70,16 @@ export function App() {
   }
 
   async function handleStart(): Promise<void> {
+    setHasTriedStart(true);
+
     if (!api) {
-      dispatch({ type: "error", message: "Preload API is unavailable" });
+      dispatch({ type: "error", message: "Preload API unavailable. Please start from Electron launcher." });
+      return;
+    }
+
+    const validationResult = validateStartInput(input);
+    if (!validationResult.ok) {
+      dispatch({ type: "error", message: validationResult.errors[0] ?? "Invalid download parameters" });
       return;
     }
 
@@ -135,21 +140,44 @@ export function App() {
   }
 
   return (
-    <main>
-      <h1>Downloader Desktop</h1>
-      <DownloadForm
-        values={input}
-        hasApi={Boolean(api)}
-        isRunning={state.status === "running"}
-        onChange={updateInput}
-        onSubmit={handleStart}
-        onStop={handleStop}
-        onSelectOutputDir={handleSelectOutputDir}
-        onOpenOutputDir={handleOpenOutputDir}
-      />
-      <ProgressPanel status={state.status} progressIndex={state.progressIndex} progressTotal={state.progressTotal} />
+    <main className="app-shell">
+      <header className="app-header">
+        <div>
+          <h1>Downloader Desktop</h1>
+          <p className="app-subtitle">2025copy comic downloader control center</p>
+        </div>
+        <span className={`status-pill status-pill--${state.status}`}>{state.status}</span>
+      </header>
+
+      {!api ? (
+        <section className="app-alert app-alert--warning" role="alert">
+          <strong>Preload API unavailable.</strong> Use <code>npm run dev:electron</code> or <code>./scripts/dev-electron.sh</code>.
+        </section>
+      ) : null}
+
+      <section className="dashboard-grid">
+        <div className="dashboard-col dashboard-col--primary">
+          <DownloadForm
+            values={input}
+            hasApi={Boolean(api)}
+            isRunning={state.status === "running"}
+            canStart={validation.ok}
+            validationErrors={hasTriedStart ? validation.errors : []}
+            onChange={updateInput}
+            onSubmit={handleStart}
+            onStop={handleStop}
+            onSelectOutputDir={handleSelectOutputDir}
+            onOpenOutputDir={handleOpenOutputDir}
+          />
+        </div>
+
+        <div className="dashboard-col dashboard-col--secondary">
+          <ProgressPanel status={state.status} progressIndex={state.progressIndex} progressTotal={state.progressTotal} />
+          <ResultPanel status={state.status} message={state.resultMessage} />
+        </div>
+      </section>
+
       <LogPanel logs={state.logs} />
-      <ResultPanel status={state.status} message={state.resultMessage} />
     </main>
   );
 }

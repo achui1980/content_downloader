@@ -7,3 +7,4 @@ tools/download-comic-2025copy/downloads/
 .DS_Store
 apps/downloader-desktop/dist-electron/
 apps/downloader-desktop/release/
+.worktrees/

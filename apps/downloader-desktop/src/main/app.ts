@@ -6,7 +6,7 @@ import { registerDownloadIpcHandlers } from "./index.js";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 function createMainWindow(): BrowserWindow {
-  const preloadPath = join(__dirname, "..", "preload", "index.js");
+  const preloadPath = join(__dirname, "..", "preload", "runtime.cjs");
   const window = new BrowserWindow({
     width: 1120,
     height: 760,

@@ -9,6 +9,18 @@ npm install
 npm run dev
 ```
 
+Run renderer + Electron together:
+
+```bash
+npm run dev:electron
+```
+
+Or use the shell launcher (auto-check deps/tool/browser):
+
+```bash
+./scripts/dev-electron.sh
+```
+
 ## Test and Build
 
 ```bash
