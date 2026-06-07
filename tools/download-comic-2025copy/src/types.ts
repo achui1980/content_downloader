@@ -1,7 +1,7 @@
 export interface DownloaderConfig {
   url: string;
   outputDir: string;
-  mode: "download" | "discover" | "preview";
+  mode: "download" | "discover" | "preview" | "preview-chapter";
   concurrency: number;
   retries: number;
   timeoutMs: number;

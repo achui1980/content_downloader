@@ -37,10 +37,45 @@ describe("parseCliArgs", () => {
     expect(config.mode).toBe("preview");
   });
 
+  it("parses --mode preview-chapter", () => {
+    const parsed = parseCliArgs([
+      "--url",
+      "https://www.2025copy.com/comic/guichuyinxiong",
+      "--mode",
+      "preview-chapter",
+      "--chapter-url",
+      "https://www.2025copy.com/comic/chapter-a"
+    ]);
+    const config = createConfig(parsed);
+
+    expect(parsed.mode).toBe("preview-chapter");
+    expect(config.mode).toBe("preview-chapter");
+  });
+
   it("rejects unknown mode", () => {
     expect(() =>
       parseCliArgs(["--url", "https://www.2025copy.com/comic/guichuyinxiong", "--mode", "invalid"])
     ).toThrow(/--mode/);
+  });
+
+  it("requires exactly one chapter URL in preview-chapter mode", () => {
+    expect(() =>
+      createConfig({
+        url: "https://www.2025copy.com/comic/guichuyinxiong",
+        mode: "preview-chapter"
+      })
+    ).toThrow(/exactly one/i);
+
+    expect(() =>
+      createConfig({
+        url: "https://www.2025copy.com/comic/guichuyinxiong",
+        mode: "preview-chapter",
+        chapterUrls: [
+          "https://www.2025copy.com/comic/chapter-a",
+          "https://www.2025copy.com/comic/chapter-b"
+        ]
+      })
+    ).toThrow(/exactly one/i);
   });
 
   it("parses preview limits", () => {

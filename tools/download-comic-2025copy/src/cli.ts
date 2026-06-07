@@ -1,5 +1,5 @@
 import { createConfig, type CliArgs } from "./config.js";
-import { runDiscoverOnly, runDownloader, runPreview } from "./main.js";
+import { runDiscoverOnly, runDownloader, runPreview, runPreviewChapter } from "./main.js";
 import { pathToFileURL } from "node:url";
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -54,8 +54,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
         i += 1;
         break;
       case "--mode":
-        if (next !== "download" && next !== "discover" && next !== "preview") {
-          throw new Error("--mode must be one of: download, discover, preview");
+        if (next !== "download" && next !== "discover" && next !== "preview" && next !== "preview-chapter") {
+          throw new Error("--mode must be one of: download, discover, preview, preview-chapter");
         }
         args.mode = next;
         i += 1;
@@ -100,6 +100,7 @@ Optional:
   --no-headless           run browser headed
   --mode discover         chapter discovery only
   --mode preview          preview-limited downloads
+  --mode preview-chapter  fetch full image URLs for one chapter
   --events-json           emit JSON line events for download runs
 `);
 }
@@ -120,6 +121,11 @@ async function main(): Promise<void> {
 
   if (config.mode === "preview") {
     await runPreview(config);
+    return;
+  }
+
+  if (config.mode === "preview-chapter") {
+    await runPreviewChapter(config);
     return;
   }
 

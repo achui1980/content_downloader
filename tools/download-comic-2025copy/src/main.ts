@@ -344,3 +344,74 @@ export async function runPreview(config: DownloaderConfig): Promise<void> {
     }
   }
 }
+
+export async function runPreviewChapter(config: DownloaderConfig): Promise<void> {
+  const startedAt = new Date().toISOString();
+  emitJsonEvent(config, {
+    type: "preview.start",
+    comicUrl: config.url,
+    startedAt,
+    previewMaxChapters: 1,
+    previewImagesPerChapter: config.previewImagesPerChapter
+  });
+
+  let browser: Browser | undefined;
+  let context: BrowserContext | undefined;
+
+  try {
+    browser = await chromium.launch({ headless: config.headless });
+    context = await browser.newContext({ userAgent: config.userAgent });
+    const page = await context.newPage();
+
+    const allChapters = await discoverChapters(page, config.url);
+    const selectedChapters = selectDownloadChapters(allChapters, config.chapterUrls);
+    const chapter = selectedChapters[0];
+    if (!chapter) {
+      throw new Error("No chapter matched --chapter-url");
+    }
+
+    const images = await extractChapterImages(page, chapter.url, config.timeoutMs);
+    const remoteImages = images.filter((image) => isRemoteHttpUrl(image.url));
+
+    emitJsonEvent(config, {
+      type: "preview.chapterDetail",
+      chapterTitle: chapter.title,
+      chapterUrl: chapter.url,
+      totalImages: remoteImages.length,
+      images: remoteImages.map((image) => image.url),
+      capturedAt: new Date().toISOString()
+    });
+
+    if (!config.eventsJson) {
+      console.log(`[preview chapter] ${chapter.title} (${remoteImages.length} images)`);
+    }
+
+    emitJsonEvent(config, {
+      type: "preview.done",
+      comicUrl: config.url,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      totalChapters: 1
+    });
+  } catch (error) {
+    emitJsonEvent(config, {
+      type: "preview.error",
+      comicUrl: config.url,
+      startedAt,
+      failedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  } finally {
+    if (context) {
+      await context.close().catch((error) => {
+        reportCleanupError(config, "context", error);
+      });
+    }
+    if (browser) {
+      await browser.close().catch((error) => {
+        reportCleanupError(config, "browser", error);
+      });
+    }
+  }
+}

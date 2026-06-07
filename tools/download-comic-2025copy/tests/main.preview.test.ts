@@ -65,7 +65,7 @@ vi.mock("node:fs/promises", () => ({
   writeFile: mocks.writeFile
 }));
 
-import { runDownloader, runPreview } from "../src/main.js";
+import { runDownloader, runPreview, runPreviewChapter } from "../src/main.js";
 
 function createConfig(overrides: Partial<DownloaderConfig> = {}): DownloaderConfig {
   return {
@@ -317,5 +317,43 @@ describe("runPreview", () => {
     const payloads = stdoutSpy.mock.calls.map((call) => JSON.parse(String(call[0]).trim()) as { type: string });
     expect(payloads.map((payload) => payload.type)).toEqual(["preview.start", "preview.error"]);
     expect(mocks.extractChapterImages).not.toHaveBeenCalled();
+  });
+});
+
+describe("runPreviewChapter", () => {
+  it("emits preview.chapterDetail with full ordered image URLs", async () => {
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    mocks.extractChapterImages.mockResolvedValueOnce([
+      { index: 1, url: "https://cdn.example.com/chapter-b-1.webp", ext: "webp" },
+      { index: 2, url: "blob:https://www.2025copy.com/abc", ext: "webp" },
+      { index: 3, url: "https://cdn.example.com/chapter-b-3.webp", ext: "webp" },
+      { index: 4, url: "https://cdn.example.com/chapter-b-4.webp", ext: "webp" }
+    ]);
+
+    await runPreviewChapter(
+      createConfig({
+        mode: "preview-chapter",
+        eventsJson: true,
+        previewImagesPerChapter: 1,
+        chapterUrls: ["https://www.2025copy.com/comic/demo/chapter/b"]
+      })
+    );
+
+    const payloads = stdoutSpy.mock.calls.map((call) => JSON.parse(String(call[0]).trim()) as { type: string });
+    expect(payloads.map((payload) => payload.type)).toEqual([
+      "preview.start",
+      "preview.chapterDetail",
+      "preview.done"
+    ]);
+
+    expect(payloads[1]).toMatchObject({
+      chapterUrl: "https://www.2025copy.com/comic/demo/chapter/b",
+      chapterTitle: "第2话",
+      images: [
+        "https://cdn.example.com/chapter-b-1.webp",
+        "https://cdn.example.com/chapter-b-3.webp",
+        "https://cdn.example.com/chapter-b-4.webp"
+      ]
+    });
   });
 });

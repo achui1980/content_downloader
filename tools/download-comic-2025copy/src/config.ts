@@ -12,7 +12,7 @@ export interface CliArgs {
   previewImagesPerChapter?: number;
   chapterUrls?: string[];
   eventsJson?: boolean;
-  mode?: "download" | "discover" | "preview";
+  mode?: "download" | "discover" | "preview" | "preview-chapter";
   help?: boolean;
 }
 
@@ -64,8 +64,8 @@ export function createConfig(input: CliArgs): DownloaderConfig {
   if (input.maxChapters !== undefined && (!Number.isInteger(input.maxChapters) || input.maxChapters < 1)) {
     throw new Error("--max-chapters must be an integer >= 1");
   }
-  if (!["download", "discover", "preview"].includes(mode)) {
-    throw new Error("--mode must be one of: download, discover, preview");
+  if (!["download", "discover", "preview", "preview-chapter"].includes(mode)) {
+    throw new Error("--mode must be one of: download, discover, preview, preview-chapter");
   }
   if (!Number.isInteger(previewMaxChapters) || previewMaxChapters < 1) {
     throw new Error("--preview-max-chapters must be an integer >= 1");
@@ -82,6 +82,10 @@ export function createConfig(input: CliArgs): DownloaderConfig {
     }
     validateComicPageUrl(chapterUrl, `--chapter-url #${index + 1}`);
   });
+
+  if (mode === "preview-chapter" && chapterUrls.length !== 1) {
+    throw new Error("--mode preview-chapter requires exactly one --chapter-url");
+  }
 
   return {
     url: input.url,
