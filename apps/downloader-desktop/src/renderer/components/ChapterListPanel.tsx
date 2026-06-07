@@ -18,6 +18,7 @@ export function ChapterListPanel(props: ChapterListPanelProps) {
       <p className="chapter-list-meta">
         Selected {props.selectedChapterUrls.length} / {props.chapters.length}
       </p>
+      <p className="chapter-list-help">Click a chapter title to load full pages in the reader.</p>
       <ul className="chapter-list" aria-label="Preview chapters">
         {props.chapters.length === 0 ? (
           <li className="chapter-list-empty">Run preview to load chapters.</li>
@@ -42,6 +43,7 @@ export function ChapterListPanel(props: ChapterListPanelProps) {
                 className={`chapter-row${isActive ? " chapter-row--active" : ""}`}
                 onClick={() => props.onSelectChapter(chapter.chapterUrl)}
                 aria-current={isActive ? "true" : undefined}
+                title="Load full chapter"
               >
                 <span className="chapter-title">{chapter.chapterTitle}</span>
               </button>

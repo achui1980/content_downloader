@@ -72,6 +72,12 @@ function createMockDownloaderApi(): DownloaderPreloadApi {
     stopDownload: vi.fn(async () => ({ stopped: true })),
     startPreview: vi.fn(async () => ({ taskId: "preview-mock" })),
     stopPreview: vi.fn(async () => ({ stopped: true })),
+    loadPreviewChapter: vi.fn(async () => ({
+      chapterTitle: "Chapter 1",
+      chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+      totalImages: 2,
+      images: ["https://img/default-1.jpg", "https://img/default-2.jpg"]
+    })),
     selectOutputDir: vi.fn(async () => null),
     openOutputDir: vi.fn(async () => null),
     onProgress: vi.fn(() => () => {}),
@@ -81,6 +87,16 @@ function createMockDownloaderApi(): DownloaderPreloadApi {
     onPreviewChapter: vi.fn(() => () => {}),
     onPreviewStatus: vi.fn(() => () => {})
   };
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  let reject: (error: unknown) => void = () => {};
+  const promise = new Promise<T>((resolveFn, rejectFn) => {
+    resolve = resolveFn;
+    reject = rejectFn;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("desktop baseline", () => {
@@ -184,6 +200,130 @@ describe("desktop baseline", () => {
 
     expect(api.startDownload).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("No chapters selected. Falling back to Download All.");
+
+    root.unmount();
+    container.remove();
+    window.downloader = previousApi;
+  });
+
+  test("App chapter reader flow loads on click, retries after error, and renders full chapter images", async () => {
+    const previewHandlers: Array<(event: { taskId: string; index: number; totalChapters: number; chapterTitle: string; chapterUrl: string; images: string[] }) => void> = [];
+    const statusHandlers: Array<(event: { taskId: string; state: "starting" | "running" | "done" | "failed" | "stopped"; message?: string }) => void> = [];
+    const firstRequest = deferred<{
+      chapterTitle: string;
+      chapterUrl: string;
+      totalImages: number;
+      images: string[];
+    }>();
+
+    const api: DownloaderPreloadApi = {
+      startDownload: vi.fn(async () => ({ taskId: "task-mock" })),
+      stopDownload: vi.fn(async () => ({ stopped: true })),
+      startPreview: vi.fn(async () => ({ taskId: "preview-mock" })),
+      stopPreview: vi.fn(async () => ({ stopped: true })),
+      loadPreviewChapter: vi
+        .fn<DownloaderPreloadApi["loadPreviewChapter"]>()
+        .mockImplementationOnce(async () => firstRequest.promise)
+        .mockImplementationOnce(async () => ({
+          chapterTitle: "Chapter 1",
+          chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+          totalImages: 3,
+          images: ["https://img/full-1.jpg", "https://img/full-2.jpg", "https://img/full-3.jpg"]
+        })),
+      selectOutputDir: vi.fn(async () => null),
+      openOutputDir: vi.fn(async () => null),
+      onProgress: vi.fn(() => () => {}),
+      onLog: vi.fn(() => () => {}),
+      onStatus: vi.fn(() => () => {}),
+      onPreviewLog: vi.fn(() => () => {}),
+      onPreviewChapter: vi.fn((handler) => {
+        previewHandlers.push(handler);
+        return () => {
+          const index = previewHandlers.indexOf(handler);
+          if (index >= 0) {
+            previewHandlers.splice(index, 1);
+          }
+        };
+      }),
+      onPreviewStatus: vi.fn((handler) => {
+        statusHandlers.push(handler);
+        return () => {
+          const index = statusHandlers.indexOf(handler);
+          if (index >= 0) {
+            statusHandlers.splice(index, 1);
+          }
+        };
+      })
+    };
+
+    const previousApi = window.downloader;
+    window.downloader = api;
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    flushSync(() => {
+      root.render(createElement(App));
+    });
+
+    const previewButton = Array.from(container.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Preview");
+    if (!previewButton) {
+      throw new Error("Preview button not found");
+    }
+
+    previewButton.click();
+    await Promise.resolve();
+
+    const previewTaskId = (api.startPreview as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.taskId;
+    if (!previewTaskId) {
+      throw new Error("Preview task id not captured");
+    }
+
+    previewHandlers.forEach((handler) => {
+      handler({
+        taskId: previewTaskId,
+        index: 1,
+        totalChapters: 1,
+        chapterTitle: "Chapter 1",
+        chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+        images: ["https://img/preview-1.jpg"]
+      });
+    });
+    statusHandlers.forEach((handler) => {
+      handler({ taskId: previewTaskId, state: "done" });
+    });
+
+    await Promise.resolve();
+
+    const chapterButton = Array.from(container.querySelectorAll("button.chapter-row")).find(
+      (node) => node.textContent?.trim() === "Chapter 1"
+    );
+    if (!chapterButton) {
+      throw new Error("Chapter button not found");
+    }
+
+    chapterButton.click();
+    await Promise.resolve();
+
+    expect(api.loadPreviewChapter).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Loading full chapter...");
+
+    firstRequest.reject(new Error("network down"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(container.textContent).toContain("network down");
+
+    const retryButton = Array.from(container.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Retry");
+    if (!retryButton) {
+      throw new Error("Retry button not found");
+    }
+
+    retryButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(api.loadPreviewChapter).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll(".reader-image")).toHaveLength(3);
 
     root.unmount();
     container.remove();

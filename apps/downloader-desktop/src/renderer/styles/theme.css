@@ -320,6 +320,12 @@ code {
   font-size: 0.88rem;
 }
 
+.chapter-list-help {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .chapter-list {
   margin: 0;
   padding: 0;
@@ -410,6 +416,10 @@ code {
 
 .reader-placeholder--error {
   color: #ffd2df;
+}
+
+.reader-actions {
+  margin-top: 12px;
 }
 
 .reader-image-stream {

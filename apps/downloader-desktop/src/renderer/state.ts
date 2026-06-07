@@ -1,5 +1,6 @@
 export type AppStatus = "idle" | "running" | "done" | "error" | "stopped";
 export type PreviewStatus = "idle" | "previewing" | "ready" | "failed";
+export type ChapterDetailStatus = "idle" | "loading" | "success" | "error";
 
 export interface PreviewChapter {
   index: number;
@@ -22,6 +23,16 @@ export interface AppState {
   activeChapterUrl: string | null;
   selectedChapterUrls: string[];
   previewError: string | null;
+  chapterDetailStatus: ChapterDetailStatus;
+  chapterDetailRequestId: string | null;
+  chapterDetail: {
+    chapterTitle: string;
+    chapterUrl: string;
+    totalImages: number;
+    images: string[];
+    capturedAt?: string;
+  } | null;
+  chapterDetailError: string | null;
 }
 
 export type AppAction =
@@ -56,6 +67,19 @@ export type AppAction =
   | { type: "previewLog"; taskId: string; source: "stdout" | "stderr"; line: string }
   | { type: "clientLog"; line: string }
   | { type: "setActiveChapter"; chapterUrl: string }
+  | { type: "previewChapterDetailLoading"; requestId: string; chapterUrl: string }
+  | {
+      type: "previewChapterDetailSuccess";
+      requestId: string;
+      detail: {
+        chapterTitle: string;
+        chapterUrl: string;
+        totalImages: number;
+        images: string[];
+        capturedAt?: string;
+      };
+    }
+  | { type: "previewChapterDetailError"; requestId: string; message: string }
   | { type: "toggleChapterSelection"; chapterUrl: string }
   | { type: "previewClientError"; message: string };
 
@@ -76,7 +100,11 @@ export function createInitialAppState(): AppState {
     previewChapters: [],
     activeChapterUrl: null,
     selectedChapterUrls: [],
-    previewError: null
+    previewError: null,
+    chapterDetailStatus: "idle",
+    chapterDetailRequestId: null,
+    chapterDetail: null,
+    chapterDetailError: null
   };
 }
 
@@ -89,7 +117,53 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
       previewChapters: [],
       activeChapterUrl: null,
       selectedChapterUrls: [],
-      previewError: null
+      previewError: null,
+      chapterDetailStatus: "idle",
+      chapterDetailRequestId: null,
+      chapterDetail: null,
+      chapterDetailError: null
+    };
+  }
+
+  if (action.type === "previewChapterDetailLoading") {
+    const exists = state.previewChapters.some((chapter) => chapter.chapterUrl === action.chapterUrl);
+    if (!exists) {
+      return state;
+    }
+    return {
+      ...state,
+      activeChapterUrl: action.chapterUrl,
+      chapterDetailStatus: "loading",
+      chapterDetailRequestId: action.requestId,
+      chapterDetail: null,
+      chapterDetailError: null
+    };
+  }
+
+  if (action.type === "previewChapterDetailSuccess") {
+    if (!state.chapterDetailRequestId || state.chapterDetailRequestId !== action.requestId) {
+      return state;
+    }
+    return {
+      ...state,
+      chapterDetailStatus: "success",
+      chapterDetail: {
+        ...action.detail,
+        images: action.detail.images.filter((image) => image.trim().length > 0)
+      },
+      chapterDetailError: null
+    };
+  }
+
+  if (action.type === "previewChapterDetailError") {
+    if (!state.chapterDetailRequestId || state.chapterDetailRequestId !== action.requestId) {
+      return state;
+    }
+    return {
+      ...state,
+      chapterDetailStatus: "error",
+      chapterDetail: null,
+      chapterDetailError: action.message
     };
   }
 
@@ -188,7 +262,11 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     }
     return {
       ...state,
-      activeChapterUrl: action.chapterUrl
+      activeChapterUrl: action.chapterUrl,
+      chapterDetailStatus: "idle",
+      chapterDetailRequestId: null,
+      chapterDetail: null,
+      chapterDetailError: null
     };
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { buildDefaultStartInput, type StartInput } from "../shared/contracts";
 import type { DownloaderPreloadApi } from "../preload/index";
 import { validatePreviewInput, validateStartInput } from "../shared/validation";
@@ -23,6 +23,7 @@ export function App() {
   const [hasTriedStart, setHasTriedStart] = useState(false);
   const [previewMaxChapters, setPreviewMaxChapters] = useState(5);
   const [previewImagesPerChapter, setPreviewImagesPerChapter] = useState(6);
+  const chapterDetailRequestSeq = useRef(0);
   const api = window.downloader;
   const baseStartValidation = validateStartInput({
     ...input,
@@ -34,6 +35,11 @@ export function App() {
     previewImagesPerChapter
   });
   const activeChapter = state.previewChapters.find((chapter) => chapter.chapterUrl === state.activeChapterUrl) ?? null;
+
+  function nextChapterDetailRequestId(): string {
+    chapterDetailRequestSeq.current += 1;
+    return `chapter-${chapterDetailRequestSeq.current}`;
+  }
 
   useEffect(() => {
     if (!api) {
@@ -234,6 +240,31 @@ export function App() {
     }
   }
 
+  async function handleLoadChapter(chapterUrl: string): Promise<void> {
+    if (!api) {
+      dispatch({ type: "previewClientError", message: "Preload API unavailable. Please start from Electron launcher." });
+      return;
+    }
+
+    const requestId = nextChapterDetailRequestId();
+    dispatch({ type: "previewChapterDetailLoading", requestId, chapterUrl });
+
+    try {
+      const detail = await api.loadPreviewChapter({ chapterUrl });
+      dispatch({ type: "previewChapterDetailSuccess", requestId, detail });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load full chapter";
+      dispatch({ type: "previewChapterDetailError", requestId, message });
+    }
+  }
+
+  async function handleRetryCurrentChapter(): Promise<void> {
+    if (!state.activeChapterUrl) {
+      return;
+    }
+    await handleLoadChapter(state.activeChapterUrl);
+  }
+
   async function handleStop(): Promise<void> {
     if (!api || !state.taskId) {
       return;
@@ -329,12 +360,22 @@ export function App() {
             activeChapterUrl={state.activeChapterUrl}
             selectionLocked={state.status === "running"}
             onToggleChapter={(chapterUrl) => dispatch({ type: "toggleChapterSelection", chapterUrl })}
-            onSelectChapter={(chapterUrl) => dispatch({ type: "setActiveChapter", chapterUrl })}
+            onSelectChapter={(chapterUrl) => {
+              void handleLoadChapter(chapterUrl);
+            }}
           />
         </div>
 
         <div className="reader-grid-col reader-grid-col--reader">
-          <ReaderPanel previewStatus={state.previewStatus} activeChapter={activeChapter} previewError={state.previewError} />
+          <ReaderPanel
+            previewStatus={state.previewStatus}
+            activeChapter={activeChapter}
+            chapterDetailStatus={state.chapterDetailStatus}
+            chapterDetail={state.chapterDetail}
+            chapterDetailError={state.chapterDetailError}
+            previewError={state.previewError}
+            onRetry={handleRetryCurrentChapter}
+          />
         </div>
       </section>
 
