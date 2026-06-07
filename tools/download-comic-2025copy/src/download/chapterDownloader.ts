@@ -16,6 +16,12 @@ export interface ChapterDownloadOptions {
   concurrency: number;
   userAgent: string;
   checkpoint: CheckpointStore;
+  onImageWritten?: (event: {
+    fileName: string;
+    bytes: number;
+    writtenImages: number;
+    writtenBytes: number;
+  }) => void;
 }
 
 async function fileExistsAndValid(path: string): Promise<boolean> {
@@ -35,6 +41,7 @@ export async function downloadChapterImages(options: ChapterDownloadOptions): Pr
 
   let downloadedCount = 0;
   let skippedCount = 0;
+  let writtenBytes = 0;
 
   const padWidth = Math.max(3, String(options.images.length).length);
 
@@ -55,7 +62,7 @@ export async function downloadChapterImages(options: ChapterDownloadOptions): Pr
         }
 
         try {
-          await downloadToFile({
+          const result = await downloadToFile({
             url: image.url,
             targetPath,
             timeoutMs: options.timeoutMs,
@@ -66,6 +73,13 @@ export async function downloadChapterImages(options: ChapterDownloadOptions): Pr
 
           options.checkpoint.markImageDone(checkpointKey, image.index);
           downloadedCount += 1;
+          writtenBytes += result.bytes;
+          options.onImageWritten?.({
+            fileName,
+            bytes: result.bytes,
+            writtenImages: downloadedCount,
+            writtenBytes
+          });
         } catch (error) {
           failures.push({
             index: image.index,

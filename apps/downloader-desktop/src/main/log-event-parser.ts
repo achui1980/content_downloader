@@ -3,14 +3,22 @@ export type DownloaderEvent =
   | { type: "run.done" }
   | { type: "run.error"; error?: string }
   | { type: "chapter.start"; index: number; totalChapters: number; chapterTitle?: string }
-  | { type: "chapter.done"; index: number; totalChapters: number; status?: string };
+  | { type: "chapter.done"; index: number; totalChapters: number; status?: string }
+  | {
+      type: "image.written";
+      fileName: string;
+      bytes: number;
+      writtenImages: number;
+      writtenBytes: number;
+    };
 
 const EVENT_TYPES = new Set([
   "run.start",
   "run.done",
   "run.error",
   "chapter.start",
-  "chapter.done"
+  "chapter.done",
+  "image.written"
 ] as const);
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -55,6 +63,25 @@ export function parseDownloaderEventLine(line: string): DownloaderEvent | null {
       index: parsed.index,
       totalChapters: parsed.totalChapters,
       status: typeof parsed.status === "string" ? parsed.status : undefined
+    };
+  }
+
+  if (parsed.type === "image.written") {
+    if (
+      typeof parsed.fileName !== "string" ||
+      typeof parsed.bytes !== "number" ||
+      typeof parsed.writtenImages !== "number" ||
+      typeof parsed.writtenBytes !== "number"
+    ) {
+      return null;
+    }
+
+    return {
+      type: "image.written",
+      fileName: parsed.fileName,
+      bytes: parsed.bytes,
+      writtenImages: parsed.writtenImages,
+      writtenBytes: parsed.writtenBytes
     };
   }
 

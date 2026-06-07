@@ -43,6 +43,7 @@ Example event lines:
 
 - `{"type":"run.start",...}`
 - `{"type":"chapter.start",...}`
+- `{"type":"image.written",...}`
 - `{"type":"chapter.done",...}`
 - `{"type":"run.done",...}`
 - `{"type":"run.error",...}`

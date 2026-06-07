@@ -72,6 +72,16 @@ function pipeLines(stream: NodeJS.ReadableStream | null, onLine: (line: string) 
   });
 }
 
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function createDownloadSession(deps: DownloadSessionDeps = {}) {
   const spawnProcess =
     deps.spawnProcess ??
@@ -166,6 +176,14 @@ export function createDownloadSession(deps: DownloadSessionDeps = {}) {
           index: event.index,
           totalChapters: event.totalChapters,
           status: "done"
+        });
+        return;
+      }
+
+      if (event.type === "image.written") {
+        handlers.onLog?.({
+          source: "stdout",
+          line: `[write] ${event.fileName} (${formatBytes(event.bytes)} | total ${event.writtenImages} files, ${formatBytes(event.writtenBytes)})`
         });
       }
     });

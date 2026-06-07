@@ -33,4 +33,24 @@ describe("parseDownloaderEventLine", () => {
   test("returns null for unknown event types", () => {
     expect(parseDownloaderEventLine(JSON.stringify({ type: "something.else" }))).toBeNull();
   });
+
+  test("parses image.written events", () => {
+    const parsed = parseDownloaderEventLine(
+      JSON.stringify({
+        type: "image.written",
+        fileName: "001.webp",
+        bytes: 2048,
+        writtenImages: 1,
+        writtenBytes: 2048
+      })
+    );
+
+    expect(parsed).toEqual({
+      type: "image.written",
+      fileName: "001.webp",
+      bytes: 2048,
+      writtenImages: 1,
+      writtenBytes: 2048
+    });
+  });
 });

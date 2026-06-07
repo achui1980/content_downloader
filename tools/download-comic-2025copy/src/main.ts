@@ -109,7 +109,21 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
           timeoutMs: config.timeoutMs,
           concurrency: config.concurrency,
           userAgent: config.userAgent,
-          checkpoint
+          checkpoint,
+          onImageWritten: (event) => {
+            emitJsonEvent(config, {
+              type: "image.written",
+              index: i + 1,
+              totalChapters: selected.length,
+              chapterTitle: chapter.title,
+              chapterUrl: chapter.url,
+              fileName: event.fileName,
+              bytes: event.bytes,
+              writtenImages: event.writtenImages,
+              writtenBytes: event.writtenBytes,
+              writtenAt: new Date().toISOString()
+            });
+          }
         });
 
         chapterSummaries.push(chapterSummary);

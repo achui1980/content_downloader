@@ -90,6 +90,44 @@ describe("createDownloadSession", () => {
     expect(logs).toContain("stderr:stderr line");
   });
 
+  test("converts image.written events into human-readable write logs", () => {
+    const child = new FakeChildProcess();
+    const session = createDownloadSession({
+      spawnProcess: createSpawnMock(child),
+      resolveDownloaderPath: () => ({
+        cwd: "/tmp/downloader-tool",
+        command: "npm",
+        argsPrefix: ["run", "start", "--"]
+      })
+    });
+
+    const logs: string[] = [];
+
+    session.start(
+      {
+        url: "https://www.2025copy.com/comic/guichuyinxiong",
+        outputDir: "./downloads",
+        concurrency: 4,
+        retries: 3
+      },
+      {
+        onLog: (event) => logs.push(`${event.source}:${event.line}`)
+      }
+    );
+
+    child.stdout.write(
+      `${JSON.stringify({
+        type: "image.written",
+        fileName: "001.webp",
+        bytes: 2048,
+        writtenImages: 1,
+        writtenBytes: 2048
+      })}\n`
+    );
+
+    expect(logs).toContain("stdout:[write] 001.webp (2 KB | total 1 files, 2 KB)");
+  });
+
   test("supports stop semantics", () => {
     const child = new FakeChildProcess();
     const session = createDownloadSession({
