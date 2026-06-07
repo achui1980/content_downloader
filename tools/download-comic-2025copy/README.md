@@ -42,6 +42,13 @@ npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong" --mode pr
   --preview-max-chapters 5 --preview-images-per-chapter 6
 ```
 
+Preview one full chapter online (returns ordered image URLs for that chapter only):
+
+```bash
+npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong" --mode preview-chapter \
+  --chapter-url "https://www.2025copy.com/comic/guichuyinxiong/2"
+```
+
 Optional flags:
 
 - `--output-dir ./downloads`
@@ -52,6 +59,7 @@ Optional flags:
 - `--no-headless`
 - `--mode discover`
 - `--mode preview`
+- `--mode preview-chapter`
 - `--preview-max-chapters 5`
 - `--preview-images-per-chapter 6`
 - `--chapter-url "https://www.2025copy.com/comic/<slug>/<chapter>"` (repeatable)
@@ -60,6 +68,7 @@ Optional flags:
 Notes:
 
 - Preview mode is remote-only: it fetches preview image URLs for UI readers and does not write image files.
+- Preview-chapter mode is also remote-only and requires exactly one `--chapter-url`.
 - In the desktop app, run preview first, select chapters, then start download to write files locally.
 
 ## JSON Event Mode
