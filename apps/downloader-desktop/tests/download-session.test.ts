@@ -40,12 +40,25 @@ describe("createDownloadSession", () => {
       url: "https://www.2025copy.com/comic/guichuyinxiong",
       outputDir: "./downloads",
       concurrency: 4,
-      retries: 3
+      retries: 3,
+      selectedChapterUrls: [
+        "https://www.2025copy.com/comic/guichuyinxiong/chapter-1",
+        "https://www.2025copy.com/comic/guichuyinxiong/chapter-2"
+      ]
     });
 
     expect(spawnMock).toHaveBeenCalledTimes(1);
     const args = spawnMock.mock.calls[0][1];
     expect(args).toContain("--events-json");
+    expect(args).toContain("--chapter-url");
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "--chapter-url",
+        "https://www.2025copy.com/comic/guichuyinxiong/chapter-1",
+        "--chapter-url",
+        "https://www.2025copy.com/comic/guichuyinxiong/chapter-2"
+      ])
+    );
   });
 
   test("routes stdout/stderr lines into status/progress/log callbacks", () => {
@@ -68,7 +81,8 @@ describe("createDownloadSession", () => {
         url: "https://www.2025copy.com/comic/guichuyinxiong",
         outputDir: "./downloads",
         concurrency: 4,
-        retries: 3
+        retries: 3,
+        selectedChapterUrls: []
       },
       {
         onStatus: (event) => statuses.push(event.state),
@@ -108,7 +122,8 @@ describe("createDownloadSession", () => {
         url: "https://www.2025copy.com/comic/guichuyinxiong",
         outputDir: "./downloads",
         concurrency: 4,
-        retries: 3
+        retries: 3,
+        selectedChapterUrls: []
       },
       {
         onLog: (event) => logs.push(`${event.source}:${event.line}`)
@@ -145,7 +160,8 @@ describe("createDownloadSession", () => {
         url: "https://www.2025copy.com/comic/guichuyinxiong",
         outputDir: "./downloads",
         concurrency: 4,
-        retries: 3
+        retries: 3,
+        selectedChapterUrls: []
       },
       {
         onStatus: (event) => statuses.push(event.state)
@@ -176,7 +192,8 @@ describe("createDownloadSession", () => {
         url: "https://www.2025copy.com/comic/guichuyinxiong",
         outputDir: "./downloads",
         concurrency: 4,
-        retries: 3
+        retries: 3,
+        selectedChapterUrls: []
       },
       {
         onStatus: (event) => statuses.push(event.state)
@@ -209,7 +226,8 @@ describe("createDownloadSession", () => {
         url: "https://www.2025copy.com/comic/guichuyinxiong",
         outputDir: "./downloads",
         concurrency: 4,
-        retries: 3
+        retries: 3,
+        selectedChapterUrls: []
       },
       {
         onStatus: (event) => statuses.push(event.state)

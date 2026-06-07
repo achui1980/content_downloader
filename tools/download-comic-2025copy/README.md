@@ -5,19 +5,41 @@ Download ordered comic images from 2025copy comic pages.
 ## Install
 
 ```bash
-npm install
+npm ci --prefix tools/download-comic-2025copy
 ```
 
-Playwright browser binaries may be required on first run:
+Install Playwright Chromium into the tool-local runtime path:
 
 ```bash
-npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=0 npm exec --prefix tools/download-comic-2025copy playwright install chromium
+```
+
+## Verification
+
+```bash
+npm test --prefix tools/download-comic-2025copy
+npm run build --prefix tools/download-comic-2025copy
 ```
 
 ## Usage
 
 ```bash
 npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong"
+```
+
+Download only specific chapters by repeating `--chapter-url`:
+
+```bash
+npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong" \
+  --chapter-url "https://www.2025copy.com/comic/guichuyinxiong/1" \
+  --chapter-url "https://www.2025copy.com/comic/guichuyinxiong/2"
+```
+
+Preview remote chapter images (no local files written):
+
+```bash
+npm run start -- --url "https://www.2025copy.com/comic/guichuyinxiong" --mode preview \
+  --preview-max-chapters 5 --preview-images-per-chapter 6
 ```
 
 Optional flags:
@@ -29,7 +51,16 @@ Optional flags:
 - `--max-chapters 3`
 - `--no-headless`
 - `--mode discover`
+- `--mode preview`
+- `--preview-max-chapters 5`
+- `--preview-images-per-chapter 6`
+- `--chapter-url "https://www.2025copy.com/comic/<slug>/<chapter>"` (repeatable)
 - `--events-json` (emit machine-readable JSON line events)
+
+Notes:
+
+- Preview mode is remote-only: it fetches preview image URLs for UI readers and does not write image files.
+- In the desktop app, run preview first, select chapters, then start download to write files locally.
 
 ## JSON Event Mode
 

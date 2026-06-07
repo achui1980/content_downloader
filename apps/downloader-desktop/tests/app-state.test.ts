@@ -5,13 +5,36 @@ import { createInitialAppState, reduceAppState } from "../src/renderer/state";
 
 describe("renderer app state", () => {
   test("transitions from idle to running on started", () => {
-    const next = reduceAppState(createInitialAppState(), {
+    const withSelection = reduceAppState(
+      reduceAppState(createInitialAppState(), {
+        type: "previewStarted",
+        taskId: "preview-seed"
+      }),
+      {
+        type: "previewChapter",
+        taskId: "preview-seed",
+        index: 1,
+        totalChapters: 1,
+        chapterTitle: "Chapter 1",
+        chapterUrl: "https://www.2025copy.com/comic/slug/1",
+        images: []
+      }
+    );
+
+    const ready = reduceAppState(withSelection, {
+      type: "previewStatus",
+      taskId: "preview-seed",
+      state: "done"
+    });
+
+    const next = reduceAppState(ready, {
       type: "started",
       taskId: "task-1"
     });
 
     expect(next.status).toBe("running");
     expect(next.taskId).toBe("task-1");
+    expect(next.selectedChapterUrls).toEqual(["https://www.2025copy.com/comic/slug/1"]);
   });
 
   test("handles terminal done status from backend", () => {
@@ -62,5 +85,21 @@ describe("renderer app state", () => {
 
     expect(next.status).toBe("running");
     expect(next.resultMessage).toBeNull();
+  });
+
+  test("does not start download while preview is previewing", () => {
+    const previewing = reduceAppState(createInitialAppState(), {
+      type: "previewStarted",
+      taskId: "preview-active"
+    });
+
+    const next = reduceAppState(previewing, {
+      type: "started",
+      taskId: "task-while-preview"
+    });
+
+    expect(next.status).toBe("idle");
+    expect(next.taskId).toBeNull();
+    expect(next.previewStatus).toBe("previewing");
   });
 });

@@ -2,35 +2,14 @@ import { spawn } from "node:child_process";
 import type { SpawnOptions } from "node:child_process";
 import { resolveDownloaderPath, type DownloaderPathInfo } from "./downloader-path.js";
 import { parseDownloaderEventLine } from "./log-event-parser.js";
+import type { PreviewChapterEvent, PreviewInput, PreviewLogEvent, PreviewStatusEvent } from "../shared/contracts.js";
 
-export interface DownloadStartInput {
-  url: string;
-  outputDir: string;
-  concurrency: number;
-  retries: number;
-  selectedChapterUrls: string[];
-}
+export type PreviewStartInput = PreviewInput;
 
-export interface DownloadLogEvent {
-  source: "stdout" | "stderr";
-  line: string;
-}
-
-export interface DownloadProgressEvent {
-  index: number;
-  totalChapters: number;
-  status: "started" | "done";
-}
-
-export interface DownloadStatusEvent {
-  state: "starting" | "running" | "done" | "failed" | "stopped";
-  message?: string;
-}
-
-export interface DownloadSessionHandlers {
-  onLog?: (event: DownloadLogEvent) => void;
-  onProgress?: (event: DownloadProgressEvent) => void;
-  onStatus?: (event: DownloadStatusEvent) => void;
+export interface PreviewSessionHandlers {
+  onLog?: (event: PreviewLogEvent) => void;
+  onChapter?: (event: PreviewChapterEvent) => void;
+  onStatus?: (event: PreviewStatusEvent) => void;
 }
 
 interface SpawnedProcess {
@@ -41,7 +20,7 @@ interface SpawnedProcess {
   kill(): boolean;
 }
 
-interface DownloadSessionDeps {
+interface PreviewSessionDeps {
   spawnProcess?: (command: string, args: string[], options: SpawnOptions) => SpawnedProcess;
   resolveDownloaderPath?: () => DownloaderPathInfo;
 }
@@ -73,17 +52,7 @@ function pipeLines(stream: NodeJS.ReadableStream | null, onLine: (line: string) 
   });
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  if (value < 1024 * 1024) {
-    return `${Math.round(value / 1024)} KB`;
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export function createDownloadSession(deps: DownloadSessionDeps = {}) {
+export function createPreviewSession(deps: PreviewSessionDeps = {}) {
   const spawnProcess =
     deps.spawnProcess ??
     ((command: string, args: string[], options: SpawnOptions) => {
@@ -94,9 +63,9 @@ export function createDownloadSession(deps: DownloadSessionDeps = {}) {
   let child: SpawnedProcess | null = null;
   let completed = false;
   let stopRequested = false;
-  let handlers: DownloadSessionHandlers = {};
+  let handlers: PreviewSessionHandlers = {};
 
-  function emitStatus(event: DownloadStatusEvent): void {
+  function emitStatus(event: PreviewStatusEvent): void {
     handlers.onStatus?.(event);
   }
 
@@ -108,9 +77,9 @@ export function createDownloadSession(deps: DownloadSessionDeps = {}) {
     emitStatus({ state, message });
   }
 
-  function start(input: DownloadStartInput, nextHandlers: DownloadSessionHandlers = {}): void {
+  function start(input: PreviewStartInput, nextHandlers: PreviewSessionHandlers = {}): void {
     if (child) {
-      throw new Error("Download session is already running");
+      throw new Error("Preview session is already running");
     }
 
     handlers = nextHandlers;
@@ -123,14 +92,13 @@ export function createDownloadSession(deps: DownloadSessionDeps = {}) {
       ...downloader.argsPrefix,
       "--url",
       input.url,
-      "--output-dir",
-      input.outputDir,
-      "--concurrency",
-      String(input.concurrency),
-      "--retries",
-      String(input.retries),
-      "--events-json",
-      ...input.selectedChapterUrls.flatMap((chapterUrl) => ["--chapter-url", chapterUrl])
+      "--mode",
+      "preview",
+      "--preview-max-chapters",
+      String(input.previewMaxChapters),
+      "--preview-images-per-chapter",
+      String(input.previewImagesPerChapter),
+      "--events-json"
     ];
 
     child = spawnProcess(downloader.command, args, {
@@ -149,43 +117,28 @@ export function createDownloadSession(deps: DownloadSessionDeps = {}) {
         return;
       }
 
-      if (event.type === "run.start") {
+      if (event.type === "preview.start") {
         emitStatus({ state: "running" });
         return;
       }
 
-      if (event.type === "run.done") {
+      if (event.type === "preview.done") {
         emitTerminalStatus("done");
         return;
       }
 
-      if (event.type === "run.error") {
+      if (event.type === "preview.error") {
         emitTerminalStatus("failed", event.error);
         return;
       }
 
-      if (event.type === "chapter.start") {
-        handlers.onProgress?.({
+      if (event.type === "preview.chapter") {
+        handlers.onChapter?.({
           index: event.index,
           totalChapters: event.totalChapters,
-          status: "started"
-        });
-        return;
-      }
-
-      if (event.type === "chapter.done") {
-        handlers.onProgress?.({
-          index: event.index,
-          totalChapters: event.totalChapters,
-          status: "done"
-        });
-        return;
-      }
-
-      if (event.type === "image.written") {
-        handlers.onLog?.({
-          source: "stdout",
-          line: `[write] ${event.fileName} (${formatBytes(event.bytes)} | total ${event.writtenImages} files, ${formatBytes(event.writtenBytes)})`
+          chapterTitle: event.chapterTitle,
+          chapterUrl: event.chapterUrl,
+          images: event.images
         });
       }
     });

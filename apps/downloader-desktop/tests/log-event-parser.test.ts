@@ -53,4 +53,45 @@ describe("parseDownloaderEventLine", () => {
       writtenBytes: 2048
     });
   });
+
+  test("parses preview.chapter events", () => {
+    const parsed = parseDownloaderEventLine(
+      JSON.stringify({
+        type: "preview.chapter",
+        index: 1,
+        totalChapters: 2,
+        chapterTitle: "Chapter 1",
+        chapterUrl: "https://www.2025copy.com/comic/slug/chapter-1",
+        images: [
+          "https://img.example/1.webp",
+          "https://img.example/2.webp"
+        ]
+      })
+    );
+
+    expect(parsed).toEqual({
+      type: "preview.chapter",
+      index: 1,
+      totalChapters: 2,
+      chapterTitle: "Chapter 1",
+      chapterUrl: "https://www.2025copy.com/comic/slug/chapter-1",
+      images: [
+        "https://img.example/1.webp",
+        "https://img.example/2.webp"
+      ]
+    });
+  });
+
+  test("parses preview lifecycle events", () => {
+    expect(parseDownloaderEventLine(JSON.stringify({ type: "preview.start" }))).toEqual({
+      type: "preview.start"
+    });
+    expect(parseDownloaderEventLine(JSON.stringify({ type: "preview.done" }))).toEqual({
+      type: "preview.done"
+    });
+    expect(parseDownloaderEventLine(JSON.stringify({ type: "preview.error", error: "boom" }))).toEqual({
+      type: "preview.error",
+      error: "boom"
+    });
+  });
 });

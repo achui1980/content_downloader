@@ -1,4 +1,13 @@
 export type AppStatus = "idle" | "running" | "done" | "error" | "stopped";
+export type PreviewStatus = "idle" | "previewing" | "ready" | "failed";
+
+export interface PreviewChapter {
+  index: number;
+  totalChapters: number;
+  chapterTitle: string;
+  chapterUrl: string;
+  images: string[];
+}
 
 export interface AppState {
   status: AppStatus;
@@ -7,6 +16,12 @@ export interface AppState {
   progressTotal: number;
   logs: string[];
   resultMessage: string | null;
+  previewStatus: PreviewStatus;
+  previewTaskId: string | null;
+  previewChapters: PreviewChapter[];
+  activeChapterUrl: string | null;
+  selectedChapterUrls: string[];
+  previewError: string | null;
 }
 
 export type AppAction =
@@ -21,7 +36,27 @@ export type AppAction =
       message?: string;
     }
   | { type: "progress"; taskId: string; index: number; totalChapters: number; status: "started" | "done" }
-  | { type: "log"; taskId: string; source: "stdout" | "stderr"; line: string };
+  | { type: "log"; taskId: string; source: "stdout" | "stderr"; line: string }
+  | { type: "previewStarted"; taskId: string }
+  | {
+      type: "previewStatus";
+      taskId: string;
+      state: "starting" | "running" | "done" | "failed" | "stopped";
+      message?: string;
+    }
+  | {
+      type: "previewChapter";
+      taskId: string;
+      index: number;
+      totalChapters: number;
+      chapterTitle: string;
+      chapterUrl: string;
+      images: string[];
+    }
+  | { type: "previewLog"; taskId: string; source: "stdout" | "stderr"; line: string }
+  | { type: "setActiveChapter"; chapterUrl: string }
+  | { type: "toggleChapterSelection"; chapterUrl: string }
+  | { type: "previewClientError"; message: string };
 
 function matchesTask(stateTaskId: string | null, eventTaskId: string): boolean {
   return !!stateTaskId && stateTaskId === eventTaskId;
@@ -34,12 +69,156 @@ export function createInitialAppState(): AppState {
     progressIndex: 0,
     progressTotal: 0,
     logs: [],
-    resultMessage: null
+    resultMessage: null,
+    previewStatus: "idle",
+    previewTaskId: null,
+    previewChapters: [],
+    activeChapterUrl: null,
+    selectedChapterUrls: [],
+    previewError: null
   };
 }
 
 export function reduceAppState(state: AppState, action: AppAction): AppState {
+  if (action.type === "previewStarted") {
+    return {
+      ...state,
+      previewStatus: "previewing",
+      previewTaskId: action.taskId,
+      previewChapters: [],
+      activeChapterUrl: null,
+      selectedChapterUrls: [],
+      previewError: null
+    };
+  }
+
+  if (action.type === "previewChapter") {
+    if (state.status === "running") {
+      return state;
+    }
+
+    if (!matchesTask(state.previewTaskId, action.taskId)) {
+      return state;
+    }
+
+    const chapter: PreviewChapter = {
+      index: action.index,
+      totalChapters: action.totalChapters,
+      chapterTitle: action.chapterTitle,
+      chapterUrl: action.chapterUrl,
+      images: action.images.filter((image) => image.trim().length > 0)
+    };
+    const existingIndex = state.previewChapters.findIndex((item) => item.chapterUrl === action.chapterUrl);
+    const nextChapters =
+      existingIndex === -1
+        ? [...state.previewChapters, chapter]
+        : state.previewChapters.map((item, index) => (index === existingIndex ? chapter : item));
+    nextChapters.sort((a, b) => a.index - b.index);
+
+    const selectedSet = new Set(state.selectedChapterUrls);
+    selectedSet.add(action.chapterUrl);
+
+    return {
+      ...state,
+      previewChapters: nextChapters,
+      activeChapterUrl: state.activeChapterUrl ?? action.chapterUrl,
+      selectedChapterUrls: nextChapters.map((item) => item.chapterUrl).filter((url) => selectedSet.has(url))
+    };
+  }
+
+  if (action.type === "previewStatus") {
+    if (!matchesTask(state.previewTaskId, action.taskId)) {
+      return state;
+    }
+
+    if (action.state === "starting" || action.state === "running") {
+      return {
+        ...state,
+        previewStatus: "previewing",
+        previewError: null
+      };
+    }
+
+    if (action.state === "done") {
+      return {
+        ...state,
+        previewStatus: "ready",
+        previewError: null
+      };
+    }
+
+    if (action.state === "failed") {
+      return {
+        ...state,
+        previewStatus: "failed",
+        previewError: action.message ?? "Preview failed"
+      };
+    }
+
+    return {
+      ...state,
+      previewStatus: state.previewChapters.length > 0 ? "ready" : "idle",
+      previewError: null
+    };
+  }
+
+  if (action.type === "previewLog") {
+    if (!matchesTask(state.previewTaskId, action.taskId)) {
+      return state;
+    }
+
+    return {
+      ...state,
+      logs: [...state.logs, `[preview:${action.source}] ${action.line}`]
+    };
+  }
+
+  if (action.type === "setActiveChapter") {
+    const exists = state.previewChapters.some((chapter) => chapter.chapterUrl === action.chapterUrl);
+    if (!exists) {
+      return state;
+    }
+    return {
+      ...state,
+      activeChapterUrl: action.chapterUrl
+    };
+  }
+
+  if (action.type === "toggleChapterSelection") {
+    if (state.status === "running") {
+      return state;
+    }
+    const exists = state.previewChapters.some((chapter) => chapter.chapterUrl === action.chapterUrl);
+    if (!exists) {
+      return state;
+    }
+
+    const selectedSet = new Set(state.selectedChapterUrls);
+    if (selectedSet.has(action.chapterUrl)) {
+      selectedSet.delete(action.chapterUrl);
+    } else {
+      selectedSet.add(action.chapterUrl);
+    }
+
+    return {
+      ...state,
+      selectedChapterUrls: state.previewChapters.map((chapter) => chapter.chapterUrl).filter((url) => selectedSet.has(url))
+    };
+  }
+
+  if (action.type === "previewClientError") {
+    return {
+      ...state,
+      previewStatus: "failed",
+      previewError: action.message
+    };
+  }
+
   if (action.type === "started") {
+    if (state.previewStatus === "previewing") {
+      return state;
+    }
+
     return {
       ...state,
       status: "running",

@@ -45,7 +45,8 @@ npm run package -- --publish never
 
 1. Open app in development mode.
 2. Fill URL with `https://www.2025copy.com/comic/guichuyinxiong`.
-3. Select output directory.
-4. Set small range in downloader debug run (for example max 3 chapters in adapter mode).
-5. Start download and confirm progress/log/status updates.
-6. Stop and rerun, verify resume behavior (`skipped` increases).
+3. Set preview limits (`Preview Chapters`, `Images/Chapter`) and click `Preview` to fetch chapter previews.
+4. Select output directory.
+5. In the chapter list, choose the chapters to download (checkboxes).
+6. Click `Download Selected` and confirm progress/log/status updates.
+7. Stop and rerun, verify resume behavior (`skipped` increases).

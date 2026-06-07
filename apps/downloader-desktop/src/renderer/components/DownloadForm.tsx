@@ -3,10 +3,19 @@ import type { StartInput } from "../../shared/contracts";
 interface DownloadFormProps {
   values: StartInput;
   isRunning: boolean;
+  isPreviewing: boolean;
   hasApi: boolean;
   canStart: boolean;
+  canPreview: boolean;
+  selectedChapterCount: number;
+  previewMaxChapters: number;
+  previewImagesPerChapter: number;
   validationErrors: string[];
   onChange: (field: keyof StartInput, value: string | number) => void;
+  onChangePreviewMaxChapters: (value: number) => void;
+  onChangePreviewImagesPerChapter: (value: number) => void;
+  onStartPreview: () => void;
+  onStopPreview: () => void;
   onSubmit: () => void;
   onStop: () => void;
   onSelectOutputDir: () => void;
@@ -14,7 +23,8 @@ interface DownloadFormProps {
 }
 
 export function DownloadForm(props: DownloadFormProps) {
-  const startDisabled = props.isRunning || !props.hasApi || !props.canStart;
+  const startDisabled = props.isRunning || props.isPreviewing || !props.hasApi || !props.canStart;
+  const previewDisabled = props.isRunning || props.isPreviewing || !props.hasApi || !props.canPreview;
 
   return (
     <section className="card">
@@ -31,9 +41,50 @@ export function DownloadForm(props: DownloadFormProps) {
             value={props.values.url}
             onChange={(event) => props.onChange("url", event.target.value)}
             placeholder="https://www.2025copy.com/comic/slug"
-            disabled={props.isRunning}
+            disabled={props.isRunning || props.isPreviewing}
           />
         </div>
+      </div>
+
+      <div className="field-row-grid">
+        <div className="field-group">
+          <label className="field-label" htmlFor="preview-max-chapters">
+            Preview Chapters
+          </label>
+          <input
+            id="preview-max-chapters"
+            className="input"
+            type="number"
+            min={1}
+            value={props.previewMaxChapters}
+            onChange={(event) => props.onChangePreviewMaxChapters(Number(event.target.value) || 1)}
+            disabled={props.isRunning || props.isPreviewing}
+          />
+        </div>
+
+        <div className="field-group">
+          <label className="field-label" htmlFor="preview-images-per-chapter">
+            Images/Chapter
+          </label>
+          <input
+            id="preview-images-per-chapter"
+            className="input"
+            type="number"
+            min={1}
+            value={props.previewImagesPerChapter}
+            onChange={(event) => props.onChangePreviewImagesPerChapter(Number(event.target.value) || 1)}
+            disabled={props.isRunning || props.isPreviewing}
+          />
+        </div>
+      </div>
+
+      <div className="button-row">
+        <button type="button" className="button button--ghost" onClick={props.onStartPreview} disabled={previewDisabled}>
+          Preview
+        </button>
+        <button type="button" className="button button--secondary" onClick={props.onStopPreview} disabled={!props.isPreviewing}>
+          Stop Preview
+        </button>
       </div>
 
       <div className="field-group">
@@ -97,7 +148,7 @@ export function DownloadForm(props: DownloadFormProps) {
 
       <div className="button-row">
         <button type="button" className="button button--primary" onClick={props.onSubmit} disabled={startDisabled}>
-          Start
+          Download Selected ({props.selectedChapterCount})
         </button>
         <button type="button" className="button button--secondary" onClick={props.onStop} disabled={!props.isRunning}>
           Stop

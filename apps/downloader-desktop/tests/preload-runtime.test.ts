@@ -15,4 +15,10 @@ describe("preload runtime wiring", () => {
     expect(source.includes('require("electron")')).toBe(true);
     expect(source.includes('contextBridge.exposeInMainWorld("downloader"')).toBe(true);
   });
+
+  test("preload runtime reuses shared preload API factory", () => {
+    const source = readFileSync("src/preload/runtime.cts", "utf8");
+
+    expect(source.includes("createPreloadApi")).toBe(true);
+  });
 });

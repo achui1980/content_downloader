@@ -1,15 +1,24 @@
 /// <reference types="vitest" />
 
 import { describe, expect, test } from "vitest";
-import type { StartInput } from "../src/shared/contracts";
-import { validateStartInput } from "../src/shared/validation";
+import type { PreviewInput, StartInput } from "../src/shared/contracts";
+import { validatePreviewInput, validateStartInput } from "../src/shared/validation";
 
 function buildValidInput(): StartInput {
   return {
     url: "https://www.2025copy.com/comic/guichuyinxiong",
     outputDir: "./downloads",
     concurrency: 4,
-    retries: 3
+    retries: 3,
+    selectedChapterUrls: ["https://www.2025copy.com/comic/guichuyinxiong/1"]
+  };
+}
+
+function buildValidPreviewInput(): PreviewInput {
+  return {
+    url: "https://www.2025copy.com/comic/guichuyinxiong",
+    previewMaxChapters: 5,
+    previewImagesPerChapter: 3
   };
 }
 
@@ -99,5 +108,64 @@ describe("validateStartInput", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("重试次数必须是大于等于 0 的整数");
+  });
+
+  test("rejects empty selected chapters", () => {
+    const result = validateStartInput({
+      ...buildValidInput(),
+      selectedChapterUrls: []
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("至少选择一个章节");
+  });
+
+  test("rejects selected chapters containing blank URL", () => {
+    const result = validateStartInput({
+      ...buildValidInput(),
+      selectedChapterUrls: ["   "]
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("至少选择一个章节");
+  });
+});
+
+describe("validatePreviewInput", () => {
+  test("returns valid for accepted preview input", () => {
+    const result = validatePreviewInput(buildValidPreviewInput());
+
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  test("rejects invalid preview URL", () => {
+    const result = validatePreviewInput({
+      ...buildValidPreviewInput(),
+      url: "https://example.com/comic/abc"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("只支持 2025copy 漫画链接");
+  });
+
+  test("rejects previewMaxChapters lower than 1", () => {
+    const result = validatePreviewInput({
+      ...buildValidPreviewInput(),
+      previewMaxChapters: 0
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("预览章节数必须是大于等于 1 的整数");
+  });
+
+  test("rejects previewImagesPerChapter lower than 1", () => {
+    const result = validatePreviewInput({
+      ...buildValidPreviewInput(),
+      previewImagesPerChapter: 0
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("每章预览图片数必须是大于等于 1 的整数");
   });
 });

@@ -1,11 +1,15 @@
 export interface DownloaderConfig {
   url: string;
   outputDir: string;
+  mode: "download" | "discover" | "preview";
   concurrency: number;
   retries: number;
   timeoutMs: number;
   headless: boolean;
   maxChapters?: number;
+  previewMaxChapters: number;
+  previewImagesPerChapter: number;
+  chapterUrls: string[];
   userAgent: string;
   chapterDelayMs: number;
   eventsJson?: boolean;

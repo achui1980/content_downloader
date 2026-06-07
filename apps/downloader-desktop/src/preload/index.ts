@@ -1,5 +1,5 @@
 import type { DownloadLogEvent, DownloadProgressEvent, DownloadStatusEvent } from "../main/download-session.js";
-import type { StartInput } from "../shared/contracts.js";
+import type { PreviewChapterEvent, PreviewInput, PreviewLogEvent, PreviewStatusEvent, StartInput } from "../shared/contracts.js";
 
 type IpcEventListener = (_event: unknown, payload: unknown) => void;
 
@@ -12,11 +12,16 @@ export interface PreloadIpcRenderer {
 export interface DownloaderPreloadApi {
   startDownload(payload: StartInput & { taskId?: string }): Promise<{ taskId: string }>;
   stopDownload(taskId: string): Promise<{ stopped: boolean }>;
+  startPreview(payload: PreviewInput & { taskId?: string }): Promise<{ taskId: string }>;
+  stopPreview(taskId: string): Promise<{ stopped: boolean }>;
   selectOutputDir(): Promise<string | null>;
   openOutputDir(path: string): Promise<unknown>;
   onProgress(cb: (event: DownloadProgressEvent & { taskId: string }) => void): () => void;
   onLog(cb: (event: DownloadLogEvent & { taskId: string }) => void): () => void;
   onStatus(cb: (event: DownloadStatusEvent & { taskId: string }) => void): () => void;
+  onPreviewLog(cb: (event: PreviewLogEvent & { taskId: string }) => void): () => void;
+  onPreviewChapter(cb: (event: PreviewChapterEvent & { taskId: string }) => void): () => void;
+  onPreviewStatus(cb: (event: PreviewStatusEvent & { taskId: string }) => void): () => void;
 }
 
 export interface ContextBridgeLike {
@@ -30,6 +35,12 @@ export function createPreloadApi(ipcRenderer: PreloadIpcRenderer): DownloaderPre
     },
     stopDownload(taskId) {
       return ipcRenderer.invoke("download:stop", taskId) as Promise<{ stopped: boolean }>;
+    },
+    startPreview(payload) {
+      return ipcRenderer.invoke("preview:start", payload) as Promise<{ taskId: string }>;
+    },
+    stopPreview(taskId) {
+      return ipcRenderer.invoke("preview:stop", taskId) as Promise<{ stopped: boolean }>;
     },
     selectOutputDir() {
       return ipcRenderer.invoke("dialog:selectOutputDir") as Promise<string | null>;
@@ -62,6 +73,33 @@ export function createPreloadApi(ipcRenderer: PreloadIpcRenderer): DownloaderPre
       ipcRenderer.on("download:status", listener);
       return () => {
         ipcRenderer.off("download:status", listener);
+      };
+    },
+    onPreviewLog(cb) {
+      const listener: IpcEventListener = (_event, payload) => {
+        cb(payload as PreviewLogEvent & { taskId: string });
+      };
+      ipcRenderer.on("preview:log", listener);
+      return () => {
+        ipcRenderer.off("preview:log", listener);
+      };
+    },
+    onPreviewChapter(cb) {
+      const listener: IpcEventListener = (_event, payload) => {
+        cb(payload as PreviewChapterEvent & { taskId: string });
+      };
+      ipcRenderer.on("preview:chapter", listener);
+      return () => {
+        ipcRenderer.off("preview:chapter", listener);
+      };
+    },
+    onPreviewStatus(cb) {
+      const listener: IpcEventListener = (_event, payload) => {
+        cb(payload as PreviewStatusEvent & { taskId: string });
+      };
+      ipcRenderer.on("preview:status", listener);
+      return () => {
+        ipcRenderer.off("preview:status", listener);
       };
     }
   };

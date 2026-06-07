@@ -1,8 +1,10 @@
 import { useEffect, useReducer, useState } from "react";
 import { buildDefaultStartInput, type StartInput } from "../shared/contracts";
 import type { DownloaderPreloadApi } from "../preload/index";
-import { validateStartInput } from "../shared/validation";
+import { validatePreviewInput, validateStartInput } from "../shared/validation";
 import { DownloadForm } from "./components/DownloadForm";
+import { ChapterListPanel } from "./components/ChapterListPanel";
+import { ReaderPanel } from "./components/ReaderPanel";
 import { ProgressPanel } from "./components/ProgressPanel";
 import { LogPanel } from "./components/LogPanel";
 import { ResultPanel } from "./components/ResultPanel";
@@ -18,8 +20,20 @@ export function App() {
   const [state, dispatch] = useReducer(reduceAppState, undefined, createInitialAppState);
   const [input, setInput] = useState<StartInput>(buildDefaultStartInput);
   const [hasTriedStart, setHasTriedStart] = useState(false);
+  const [previewMaxChapters, setPreviewMaxChapters] = useState(5);
+  const [previewImagesPerChapter, setPreviewImagesPerChapter] = useState(6);
   const api = window.downloader;
-  const validation = validateStartInput(input);
+  const startPayload: StartInput = {
+    ...input,
+    selectedChapterUrls: state.selectedChapterUrls
+  };
+  const validation = validateStartInput(startPayload);
+  const previewValidation = validatePreviewInput({
+    url: input.url,
+    previewMaxChapters,
+    previewImagesPerChapter
+  });
+  const activeChapter = state.previewChapters.find((chapter) => chapter.chapterUrl === state.activeChapterUrl) ?? null;
 
   useEffect(() => {
     if (!api) {
@@ -54,10 +68,43 @@ export function App() {
       });
     });
 
+    const offPreviewLog = api.onPreviewLog((event) => {
+      dispatch({
+        type: "previewLog",
+        taskId: event.taskId,
+        source: event.source,
+        line: event.line
+      });
+    });
+
+    const offPreviewChapter = api.onPreviewChapter((event) => {
+      dispatch({
+        type: "previewChapter",
+        taskId: event.taskId,
+        index: event.index,
+        totalChapters: event.totalChapters,
+        chapterTitle: event.chapterTitle,
+        chapterUrl: event.chapterUrl,
+        images: event.images
+      });
+    });
+
+    const offPreviewStatus = api.onPreviewStatus((event) => {
+      dispatch({
+        type: "previewStatus",
+        taskId: event.taskId,
+        state: event.state,
+        message: event.message
+      });
+    });
+
     return () => {
       offProgress();
       offLog();
       offStatus();
+      offPreviewLog();
+      offPreviewChapter();
+      offPreviewStatus();
     };
   }, [api]);
 
@@ -77,7 +124,12 @@ export function App() {
       return;
     }
 
-    const validationResult = validateStartInput(input);
+    if (state.previewStatus === "previewing") {
+      dispatch({ type: "error", message: "Stop preview before starting download." });
+      return;
+    }
+
+    const validationResult = validateStartInput(startPayload);
     if (!validationResult.ok) {
       dispatch({ type: "error", message: validationResult.errors[0] ?? "Invalid download parameters" });
       return;
@@ -88,12 +140,61 @@ export function App() {
 
     try {
       await api.startDownload({
-        ...input,
+        ...startPayload,
         taskId
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to start download";
       dispatch({ type: "error", message });
+    }
+  }
+
+  async function handleStartPreview(): Promise<void> {
+    if (!api) {
+      dispatch({ type: "previewClientError", message: "Preload API unavailable. Please start from Electron launcher." });
+      return;
+    }
+
+    const previewInput = {
+      url: input.url,
+      previewMaxChapters,
+      previewImagesPerChapter
+    };
+    const validationResult = validatePreviewInput(previewInput);
+    if (!validationResult.ok) {
+      dispatch({ type: "previewClientError", message: validationResult.errors[0] ?? "Invalid preview parameters" });
+      return;
+    }
+
+    const taskId = `preview-${Date.now()}`;
+    dispatch({ type: "previewStarted", taskId });
+
+    try {
+      await api.startPreview({
+        ...previewInput,
+        taskId
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start preview";
+      dispatch({ type: "previewClientError", message });
+    }
+  }
+
+  async function handleStopPreview(): Promise<void> {
+    if (!api || !state.previewTaskId) {
+      return;
+    }
+
+    try {
+      const result = await api.stopPreview(state.previewTaskId);
+      if (result.stopped) {
+        dispatch({ type: "previewStatus", taskId: state.previewTaskId, state: "stopped" });
+        return;
+      }
+      dispatch({ type: "previewClientError", message: "Stop preview failed" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to stop preview";
+      dispatch({ type: "previewClientError", message });
     }
   }
 
@@ -109,7 +210,7 @@ export function App() {
         return;
       }
 
-      dispatch({ type: "error", message: "停止失败：当前没有可停止的任务" });
+      dispatch({ type: "error", message: "Stop failed: there is no active download task" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to stop download";
       dispatch({ type: "error", message });
@@ -155,24 +256,54 @@ export function App() {
         </section>
       ) : null}
 
-      <section className="dashboard-grid">
-        <div className="dashboard-col dashboard-col--primary">
+      <section className="control-row">
+        <div className="control-col">
           <DownloadForm
             values={input}
             hasApi={Boolean(api)}
             isRunning={state.status === "running"}
+            isPreviewing={state.previewStatus === "previewing"}
             canStart={validation.ok}
+            canPreview={previewValidation.ok}
+            selectedChapterCount={state.selectedChapterUrls.length}
+            previewMaxChapters={previewMaxChapters}
+            previewImagesPerChapter={previewImagesPerChapter}
             validationErrors={hasTriedStart ? validation.errors : []}
             onChange={updateInput}
+            onChangePreviewMaxChapters={setPreviewMaxChapters}
+            onChangePreviewImagesPerChapter={setPreviewImagesPerChapter}
+            onStartPreview={handleStartPreview}
+            onStopPreview={handleStopPreview}
             onSubmit={handleStart}
             onStop={handleStop}
             onSelectOutputDir={handleSelectOutputDir}
             onOpenOutputDir={handleOpenOutputDir}
           />
         </div>
+      </section>
 
-        <div className="dashboard-col dashboard-col--secondary">
+      <section className="reader-grid">
+        <div className="reader-grid-col reader-grid-col--chapters">
+          <ChapterListPanel
+            chapters={state.previewChapters}
+            selectedChapterUrls={state.selectedChapterUrls}
+            activeChapterUrl={state.activeChapterUrl}
+            selectionLocked={state.status === "running"}
+            onToggleChapter={(chapterUrl) => dispatch({ type: "toggleChapterSelection", chapterUrl })}
+            onSelectChapter={(chapterUrl) => dispatch({ type: "setActiveChapter", chapterUrl })}
+          />
+        </div>
+
+        <div className="reader-grid-col reader-grid-col--reader">
+          <ReaderPanel previewStatus={state.previewStatus} activeChapter={activeChapter} previewError={state.previewError} />
+        </div>
+      </section>
+
+      <section className="status-row">
+        <div className="status-row-col">
           <ProgressPanel status={state.status} progressIndex={state.progressIndex} progressTotal={state.progressTotal} />
+        </div>
+        <div className="status-row-col">
           <ResultPanel status={state.status} message={state.resultMessage} />
         </div>
       </section>

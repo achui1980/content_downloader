@@ -4,7 +4,10 @@ import {
   type DownloadProgressEvent,
   type DownloadStatusEvent
 } from "./download-session.js";
-import type { StartInput } from "../shared/contracts.js";
+import {
+  createPreviewSession
+} from "./preview-session.js";
+import type { PreviewChapterEvent, PreviewInput, PreviewLogEvent, PreviewStatusEvent, StartInput } from "../shared/contracts.js";
 
 interface IpcSender {
   send(channel: string, payload: unknown): void;
@@ -39,16 +42,32 @@ interface DownloadSessionLike {
   isRunning(): boolean;
 }
 
+interface PreviewSessionLike {
+  start(
+    payload: PreviewInput,
+    handlers: {
+      onLog?: (event: PreviewLogEvent) => void;
+      onChapter?: (event: PreviewChapterEvent) => void;
+      onStatus?: (event: PreviewStatusEvent) => void;
+    }
+  ): void;
+  stop(): void;
+  isRunning(): boolean;
+}
+
 export interface RegisterDownloadIpcDeps {
   ipcMain: IpcMainLike;
   session?: DownloadSessionLike;
+  previewSession?: PreviewSessionLike;
   dialog: DialogLike;
   shell: ShellLike;
 }
 
 export function registerDownloadIpcHandlers(deps: RegisterDownloadIpcDeps): void {
   const session = deps.session ?? createDownloadSession();
+  const previewSession = deps.previewSession ?? createPreviewSession();
   let currentTaskId: string | null = null;
+  let currentPreviewTaskId: string | null = null;
 
   deps.ipcMain.handle("download:start", (event, payload) => {
     const input = payload as StartInput & { taskId?: string };
@@ -91,6 +110,50 @@ export function registerDownloadIpcHandlers(deps: RegisterDownloadIpcDeps): void
     }
     session.stop();
     currentTaskId = null;
+    return { stopped: true };
+  });
+
+  deps.ipcMain.handle("preview:start", (event, payload) => {
+    const input = payload as PreviewInput & { taskId?: string };
+    const taskId = typeof input.taskId === "string" && input.taskId.length > 0 ? input.taskId : `preview-${Date.now()}`;
+    currentPreviewTaskId = taskId;
+
+    previewSession.start(input, {
+      onLog(log) {
+        event.sender.send("preview:log", {
+          taskId,
+          ...log
+        });
+      },
+      onChapter(chapter) {
+        event.sender.send("preview:chapter", {
+          taskId,
+          ...chapter
+        });
+      },
+      onStatus(status) {
+        event.sender.send("preview:status", {
+          taskId,
+          ...status
+        });
+        if (status.state === "done" || status.state === "failed" || status.state === "stopped") {
+          currentPreviewTaskId = null;
+        }
+      }
+    });
+
+    return { taskId };
+  });
+
+  deps.ipcMain.handle("preview:stop", (_event, taskId) => {
+    if (!previewSession.isRunning()) {
+      return { stopped: false };
+    }
+    if (typeof taskId === "string" && currentPreviewTaskId && taskId !== currentPreviewTaskId) {
+      return { stopped: false };
+    }
+    previewSession.stop();
+    currentPreviewTaskId = null;
     return { stopped: true };
   });
 

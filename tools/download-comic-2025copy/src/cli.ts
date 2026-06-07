@@ -1,5 +1,5 @@
 import { createConfig, type CliArgs } from "./config.js";
-import { runDiscoverOnly, runDownloader } from "./main.js";
+import { runDiscoverOnly, runDownloader, runPreview } from "./main.js";
 import { pathToFileURL } from "node:url";
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -37,8 +37,27 @@ export function parseCliArgs(argv: string[]): CliArgs {
         args.maxChapters = Number.parseInt(next, 10);
         i += 1;
         break;
+      case "--preview-max-chapters":
+        args.previewMaxChapters = Number.parseInt(next, 10);
+        i += 1;
+        break;
+      case "--preview-images-per-chapter":
+        args.previewImagesPerChapter = Number.parseInt(next, 10);
+        i += 1;
+        break;
+      case "--chapter-url":
+        if (!next || next.startsWith("--")) {
+          throw new Error("--chapter-url requires a URL value");
+        }
+        args.chapterUrls ??= [];
+        args.chapterUrls.push(next);
+        i += 1;
+        break;
       case "--mode":
-        args.mode = next === "discover" ? "discover" : "download";
+        if (next !== "download" && next !== "discover" && next !== "preview") {
+          throw new Error("--mode must be one of: download, discover, preview");
+        }
+        args.mode = next;
         i += 1;
         break;
       case "--headless":
@@ -74,9 +93,13 @@ Optional:
   --retries <n>           default: 3
   --timeout-ms <n>        default: 15000
   --max-chapters <n>      default: all
+  --preview-max-chapters <n> default: 12
+  --preview-images-per-chapter <n> default: 3
+  --chapter-url <url>     repeatable; filter chapters in download/preview modes
   --headless              run browser headless
   --no-headless           run browser headed
   --mode discover         chapter discovery only
+  --mode preview          preview-limited downloads
   --events-json           emit JSON line events for download runs
 `);
 }
@@ -90,8 +113,13 @@ async function main(): Promise<void> {
 
   const config = createConfig(parsed);
 
-  if (parsed.mode === "discover") {
+  if (config.mode === "discover") {
     await runDiscoverOnly(config);
+    return;
+  }
+
+  if (config.mode === "preview") {
+    await runPreview(config);
     return;
   }
 

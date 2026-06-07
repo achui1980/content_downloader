@@ -2,6 +2,17 @@ export type DownloaderEvent =
   | { type: "run.start" }
   | { type: "run.done" }
   | { type: "run.error"; error?: string }
+  | { type: "preview.start" }
+  | { type: "preview.done" }
+  | { type: "preview.error"; error?: string }
+  | {
+      type: "preview.chapter";
+      index: number;
+      totalChapters: number;
+      chapterTitle: string;
+      chapterUrl: string;
+      images: string[];
+    }
   | { type: "chapter.start"; index: number; totalChapters: number; chapterTitle?: string }
   | { type: "chapter.done"; index: number; totalChapters: number; status?: string }
   | {
@@ -16,6 +27,10 @@ const EVENT_TYPES = new Set([
   "run.start",
   "run.done",
   "run.error",
+  "preview.start",
+  "preview.done",
+  "preview.error",
+  "preview.chapter",
   "chapter.start",
   "chapter.done",
   "image.written"
@@ -85,14 +100,41 @@ export function parseDownloaderEventLine(line: string): DownloaderEvent | null {
     };
   }
 
-  if (parsed.type === "run.error") {
+  if (parsed.type === "preview.chapter") {
+    if (
+      typeof parsed.index !== "number" ||
+      typeof parsed.totalChapters !== "number" ||
+      typeof parsed.chapterTitle !== "string" ||
+      typeof parsed.chapterUrl !== "string" ||
+      !Array.isArray(parsed.images) ||
+      parsed.images.some((image) => typeof image !== "string")
+    ) {
+      return null;
+    }
+
     return {
-      type: "run.error",
+      type: "preview.chapter",
+      index: parsed.index,
+      totalChapters: parsed.totalChapters,
+      chapterTitle: parsed.chapterTitle,
+      chapterUrl: parsed.chapterUrl,
+      images: parsed.images
+    };
+  }
+
+  if (parsed.type === "run.error" || parsed.type === "preview.error") {
+    return {
+      type: parsed.type,
       error: typeof parsed.error === "string" ? parsed.error : undefined
     };
   }
 
-  if (parsed.type === "run.start" || parsed.type === "run.done") {
+  if (
+    parsed.type === "run.start" ||
+    parsed.type === "run.done" ||
+    parsed.type === "preview.start" ||
+    parsed.type === "preview.done"
+  ) {
     return { type: parsed.type };
   }
 

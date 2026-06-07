@@ -8,6 +8,39 @@ import { extractChapterImages } from "./site2025copy/extractChapterImages.js";
 import type { DownloaderConfig, RunSummary } from "./types.js";
 import { sanitizePathSegment, getComicSlugFromUrl } from "./utils/pathing.js";
 
+function normalizeChapterUrl(chapterUrl: string): string {
+  const normalized = new URL(chapterUrl);
+  normalized.hash = "";
+  normalized.search = "";
+  normalized.pathname = normalized.pathname.replace(/\/+$/, "") || "/";
+  return normalized.toString();
+}
+
+function isRemoteHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function selectDownloadChapters<T extends { url: string }>(chapters: T[], chapterUrls: string[]): T[] {
+  if (chapterUrls.length === 0) {
+    return chapters;
+  }
+
+  const selectedChapterUrls = new Set(chapterUrls.map((url) => normalizeChapterUrl(url)));
+  const discoveredChapterUrls = new Set(chapters.map((chapter) => normalizeChapterUrl(chapter.url)));
+  const unmatchedChapterUrls = chapterUrls.filter((url) => !discoveredChapterUrls.has(normalizeChapterUrl(url)));
+
+  if (unmatchedChapterUrls.length > 0) {
+    throw new Error(`Some --chapter-url values were not found in discovered chapters: ${unmatchedChapterUrls.join(", ")}`);
+  }
+
+  return chapters.filter((chapter) => selectedChapterUrls.has(normalizeChapterUrl(chapter.url)));
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -72,8 +105,11 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
     const page = await context.newPage();
 
     const allChapters = await discoverChapters(page, config.url);
+    const selectedChapters = selectDownloadChapters(allChapters, config.chapterUrls);
     const selected =
-      config.maxChapters && config.maxChapters > 0 ? allChapters.slice(0, config.maxChapters) : allChapters;
+      config.maxChapters && config.maxChapters > 0
+        ? selectedChapters.slice(0, config.maxChapters)
+        : selectedChapters;
 
     for (let i = 0; i < selected.length; i += 1) {
       const chapter = selected[i];
@@ -230,4 +266,81 @@ export async function runDownloader(config: DownloaderConfig): Promise<RunSummar
     failedChapters: runSummary.failedChapters
   });
   return runSummary;
+}
+
+export async function runPreview(config: DownloaderConfig): Promise<void> {
+  const startedAt = new Date().toISOString();
+  emitJsonEvent(config, {
+    type: "preview.start",
+    comicUrl: config.url,
+    startedAt,
+    previewMaxChapters: config.previewMaxChapters,
+    previewImagesPerChapter: config.previewImagesPerChapter
+  });
+
+  let browser: Browser | undefined;
+  let context: BrowserContext | undefined;
+
+  try {
+    browser = await chromium.launch({ headless: config.headless });
+    context = await browser.newContext({ userAgent: config.userAgent });
+    const page = await context.newPage();
+
+    const allChapters = await discoverChapters(page, config.url);
+    const selectedChapters = selectDownloadChapters(allChapters, config.chapterUrls);
+    const limitedChapters = selectedChapters.slice(0, config.previewMaxChapters);
+
+    for (let i = 0; i < limitedChapters.length; i += 1) {
+      const chapter = limitedChapters[i];
+      const images = await extractChapterImages(page, chapter.url, config.timeoutMs);
+      const remoteImages = images.filter((image) => isRemoteHttpUrl(image.url));
+
+      emitJsonEvent(config, {
+        type: "preview.chapter",
+        index: i + 1,
+        totalChapters: limitedChapters.length,
+        chapterTitle: chapter.title,
+        chapterUrl: chapter.url,
+        totalImages: remoteImages.length,
+        images: remoteImages.slice(0, config.previewImagesPerChapter).map((image) => image.url),
+        capturedAt: new Date().toISOString()
+      });
+
+      if (!config.eventsJson) {
+        console.log(
+          `[preview ${i + 1}/${limitedChapters.length}] ${chapter.title} (${Math.min(remoteImages.length, config.previewImagesPerChapter)}/${remoteImages.length} images)`
+        );
+      }
+
+      await delay(config.chapterDelayMs);
+    }
+
+    emitJsonEvent(config, {
+      type: "preview.done",
+      comicUrl: config.url,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      totalChapters: limitedChapters.length
+    });
+  } catch (error) {
+    emitJsonEvent(config, {
+      type: "preview.error",
+      comicUrl: config.url,
+      startedAt,
+      failedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  } finally {
+    if (context) {
+      await context.close().catch((error) => {
+        reportCleanupError(config, "context", error);
+      });
+    }
+    if (browser) {
+      await browser.close().catch((error) => {
+        reportCleanupError(config, "browser", error);
+      });
+    }
+  }
 }
