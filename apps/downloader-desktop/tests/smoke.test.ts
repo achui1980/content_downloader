@@ -296,7 +296,7 @@ describe("desktop baseline", () => {
 
     await Promise.resolve();
 
-    const chapterButton = Array.from(container.querySelectorAll("button.chapter-row")).find(
+    const chapterButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button.chapter-row")).find(
       (node) => node.textContent?.trim() === "Chapter 1"
     );
     if (!chapterButton) {

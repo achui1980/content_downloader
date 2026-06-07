@@ -85,15 +85,17 @@ export function ReaderPanel(props: ReaderPanelProps) {
     );
   }
 
+  const chapterDetail = props.chapterDetail;
+
   return (
     <section className="card card--reader">
-      <h2>{props.chapterDetail.chapterTitle}</h2>
+      <h2>{chapterDetail.chapterTitle}</h2>
       <div className="reader-image-stream">
-        {props.chapterDetail.images.map((image, index) => (
-          <div key={`${props.chapterDetail.chapterUrl}-${index}`} className="reader-image-frame">
+        {chapterDetail.images.map((image, index) => (
+          <div key={`${chapterDetail.chapterUrl}-${index}`} className="reader-image-frame">
             <img
               src={image}
-              alt={`${props.chapterDetail.chapterTitle} page ${index + 1}`}
+              alt={`${chapterDetail.chapterTitle} page ${index + 1}`}
               className="reader-image"
               loading="lazy"
               width={1200}
