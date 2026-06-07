@@ -46,6 +46,18 @@ export interface PreviewStatusEvent {
   message?: string;
 }
 
+export interface PreviewChapterDetailRequestInput {
+  chapterUrl: string;
+}
+
+export interface PreviewChapterDetail {
+  chapterTitle: string;
+  chapterUrl: string;
+  totalImages: number;
+  images: string[];
+  capturedAt?: string;
+}
+
 export function buildDefaultStartInput(): StartInput {
   return {
     url: "https://www.2025copy.com/comic/guichuyinxiong",

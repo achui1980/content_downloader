@@ -29,6 +29,9 @@ describe("preload api", () => {
       previewImagesPerChapter: 2
     });
     await api.stopPreview("preview-task-1");
+    await api.loadPreviewChapter({
+      chapterUrl: "https://example.com/comic/1/chapter-1"
+    });
 
     expect(invoke).toHaveBeenNthCalledWith(1, "download:start", {
       url: "https://example.com/comic/1",
@@ -46,6 +49,9 @@ describe("preload api", () => {
       previewImagesPerChapter: 2
     });
     expect(invoke).toHaveBeenNthCalledWith(6, "preview:stop", "preview-task-1");
+    expect(invoke).toHaveBeenNthCalledWith(7, "preview:loadChapter", {
+      chapterUrl: "https://example.com/comic/1/chapter-1"
+    });
   });
 
   test("subscribes to progress, log, and status events", () => {

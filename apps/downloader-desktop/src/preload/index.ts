@@ -1,5 +1,13 @@
 import type { DownloadLogEvent, DownloadProgressEvent, DownloadStatusEvent } from "../main/download-session.js";
-import type { PreviewChapterEvent, PreviewInput, PreviewLogEvent, PreviewStatusEvent, StartInput } from "../shared/contracts.js";
+import type {
+  PreviewChapterDetail,
+  PreviewChapterDetailRequestInput,
+  PreviewChapterEvent,
+  PreviewInput,
+  PreviewLogEvent,
+  PreviewStatusEvent,
+  StartInput
+} from "../shared/contracts.js";
 
 type IpcEventListener = (_event: unknown, payload: unknown) => void;
 
@@ -14,6 +22,7 @@ export interface DownloaderPreloadApi {
   stopDownload(taskId: string): Promise<{ stopped: boolean }>;
   startPreview(payload: PreviewInput & { taskId?: string }): Promise<{ taskId: string }>;
   stopPreview(taskId: string): Promise<{ stopped: boolean }>;
+  loadPreviewChapter(payload: PreviewChapterDetailRequestInput): Promise<PreviewChapterDetail>;
   selectOutputDir(): Promise<string | null>;
   openOutputDir(path: string): Promise<unknown>;
   onProgress(cb: (event: DownloadProgressEvent & { taskId: string }) => void): () => void;
@@ -41,6 +50,9 @@ export function createPreloadApi(ipcRenderer: PreloadIpcRenderer): DownloaderPre
     },
     stopPreview(taskId) {
       return ipcRenderer.invoke("preview:stop", taskId) as Promise<{ stopped: boolean }>;
+    },
+    loadPreviewChapter(payload) {
+      return ipcRenderer.invoke("preview:loadChapter", payload) as Promise<PreviewChapterDetail>;
     },
     selectOutputDir() {
       return ipcRenderer.invoke("dialog:selectOutputDir") as Promise<string | null>;
