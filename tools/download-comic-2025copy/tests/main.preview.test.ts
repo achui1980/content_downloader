@@ -356,4 +356,35 @@ describe("runPreviewChapter", () => {
       ]
     });
   });
+
+  it("falls back to the requested chapter URL when discovery misses that chapter", async () => {
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    mocks.discoverChapters.mockResolvedValueOnce([
+      { title: "第1话", url: "https://www.2025copy.com/comic/demo/chapter/a", order: 1 }
+    ]);
+
+    await runPreviewChapter(
+      createConfig({
+        mode: "preview-chapter",
+        eventsJson: true,
+        chapterUrls: ["https://www.2025copy.com/comic/demo/chapter/missing"]
+      })
+    );
+
+    const payloads = stdoutSpy.mock.calls.map((call) => JSON.parse(String(call[0]).trim()) as { type: string });
+    expect(payloads.map((payload) => payload.type)).toEqual([
+      "preview.start",
+      "preview.chapterDetail",
+      "preview.done"
+    ]);
+    expect(payloads[1]).toMatchObject({
+      chapterUrl: "https://www.2025copy.com/comic/demo/chapter/missing"
+    });
+
+    expect(mocks.extractChapterImages).toHaveBeenCalledWith(
+      mocks.page,
+      "https://www.2025copy.com/comic/demo/chapter/missing",
+      1000
+    );
+  });
 });

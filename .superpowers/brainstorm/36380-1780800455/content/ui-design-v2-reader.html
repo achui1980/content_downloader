@@ -1,0 +1,60 @@
+<h2>Reader-Style Preview UI</h2>
+<p class="subtitle">Match your expectation: left chapter list, right original images like a comic reader</p>
+
+<div class="split">
+  <div class="mockup" style="max-width:320px;">
+    <div class="mockup-header">Left: Chapter Navigator</div>
+    <div class="mockup-body">
+      <div class="mock-content">Preview config: chapters [12], images/chapter [5]</div>
+      <div class="mock-content">Actions: Fetch Preview | Select All | Clear</div>
+      <div class="label">Chapters (multi-select)</div>
+      <div class="mock-sidebar">[x] 001 第1话 开端</div>
+      <div class="mock-sidebar">[x] 002 第2话 线索</div>
+      <div class="mock-sidebar">[ ] 003 第3话 追踪</div>
+      <div class="mock-sidebar">[ ] 004 第4话 冲突</div>
+      <div class="mock-sidebar">[x] 005 第5话 反转</div>
+      <div class="mock-content" style="margin-top:10px;">Start Download => only selected chapters</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Right: Comic Reader (Original Images)</div>
+    <div class="mockup-body">
+      <div class="mock-content">Current chapter: 001 第1话 开端 | remote preview only</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+        <div class="placeholder" style="height:260px;">Original image #1 (full width)</div>
+        <div class="placeholder" style="height:260px;">Original image #2 (full width)</div>
+        <div class="placeholder" style="height:260px;">Original image #3 (full width)</div>
+      </div>
+      <div class="mock-content" style="margin-top:10px;">Behavior: vertical scroll reading, no forced thumbnail crop.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px;">
+  <div class="mockup">
+    <div class="mockup-header">Bottom Dock</div>
+    <div class="mockup-body">
+      <div class="mock-content">Left: preview/download logs</div>
+      <div class="mock-content">Center: progress + status (running/done/failed/stopped)</div>
+      <div class="mock-content">Right: primary CTA (Start Download / Stop)</div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px;">
+  <div class="option" data-choice="reader-pass" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>这个更接近漫画阅读器</h3>
+      <p>按这个布局推进实现。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="reader-tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>还要微调</h3>
+      <p>保持左右结构，但调整细节（例如章节宽度、图片高度、日志位置）。</p>
+    </div>
+  </div>
+</div>

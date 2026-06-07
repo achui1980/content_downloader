@@ -16,9 +16,9 @@ describe("preload runtime wiring", () => {
     expect(source.includes('contextBridge.exposeInMainWorld("downloader"')).toBe(true);
   });
 
-  test("preload runtime reuses shared preload API factory", () => {
+  test("preload runtime does not require local preload modules", () => {
     const source = readFileSync("src/preload/runtime.cts", "utf8");
 
-    expect(source.includes("createPreloadApi")).toBe(true);
+    expect(source.includes('require("./index.js")')).toBe(false);
   });
 });

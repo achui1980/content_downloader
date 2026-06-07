@@ -1,0 +1,68 @@
+<h2>Preview-First UI Design (Desktop)</h2>
+<p class="subtitle">Single-page workflow: configure -> preview -> select chapters -> download</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Top Bar: URL + status + primary actions</div>
+    <div class="mockup-body">
+      <div class="mock-nav">Comic URL input | Validate badge | Fetch Preview | Start Download | Stop</div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Left Panel: Preview controls + chapter list</div>
+    <div class="mockup-body">
+      <div class="label">Preview settings</div>
+      <div class="mock-content">Max chapters [number]</div>
+      <div class="mock-content">Images per chapter [number]</div>
+      <div class="mock-content">Buttons: Select all | Clear | Refresh preview</div>
+      <div class="label">Chapter list (multi-select)</div>
+      <div class="mock-sidebar">[x] Ch 001 title (3 images)</div>
+      <div class="mock-sidebar">[ ] Ch 002 title (3 images)</div>
+      <div class="mock-sidebar">[x] Ch 003 title (2 images)</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Right Panel: Chapter image preview grid</div>
+    <div class="mockup-body">
+      <div class="label">Selected chapter: Ch 001</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+        <div class="placeholder" style="height:110px;">Image 1</div>
+        <div class="placeholder" style="height:110px;">Image 2</div>
+        <div class="placeholder" style="height:110px;">Image 3</div>
+      </div>
+      <div class="mock-content" style="margin-top:10px;">Hint: preview is remote-only, no local files written.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px;">
+  <div class="mockup">
+    <div class="mockup-header">Bottom: Progress + logs + result</div>
+    <div class="mockup-body">
+      <div class="mock-content">Progress: chapter 2 / 12</div>
+      <div class="mock-content">Result panel: done / failed / stopped</div>
+      <div class="mock-content">Live logs with event source tags</div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px;">
+  <div class="option" data-choice="layout-ok" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Layout direction approved</h3>
+      <p>Use this information architecture and interaction order for implementation.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="layout-adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Need adjustments</h3>
+      <p>Keep the idea but change panel order, controls, or visual priority.</p>
+    </div>
+  </div>
+</div>

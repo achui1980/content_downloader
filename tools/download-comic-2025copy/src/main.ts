@@ -359,31 +359,35 @@ export async function runPreviewChapter(config: DownloaderConfig): Promise<void>
   let context: BrowserContext | undefined;
 
   try {
+    const requestedChapterUrl = config.chapterUrls[0];
+    if (!requestedChapterUrl) {
+      throw new Error("--chapter-url is required for preview-chapter mode");
+    }
+
     browser = await chromium.launch({ headless: config.headless });
     context = await browser.newContext({ userAgent: config.userAgent });
     const page = await context.newPage();
 
     const allChapters = await discoverChapters(page, config.url);
-    const selectedChapters = selectDownloadChapters(allChapters, config.chapterUrls);
-    const chapter = selectedChapters[0];
-    if (!chapter) {
-      throw new Error("No chapter matched --chapter-url");
-    }
+    const normalizedRequestedChapterUrl = normalizeChapterUrl(requestedChapterUrl);
+    const matchedChapter = allChapters.find((chapter) => normalizeChapterUrl(chapter.url) === normalizedRequestedChapterUrl);
+    const chapterUrl = matchedChapter?.url ?? requestedChapterUrl;
+    const chapterTitle = matchedChapter?.title ?? requestedChapterUrl;
 
-    const images = await extractChapterImages(page, chapter.url, config.timeoutMs);
+    const images = await extractChapterImages(page, chapterUrl, config.timeoutMs);
     const remoteImages = images.filter((image) => isRemoteHttpUrl(image.url));
 
     emitJsonEvent(config, {
       type: "preview.chapterDetail",
-      chapterTitle: chapter.title,
-      chapterUrl: chapter.url,
+      chapterTitle,
+      chapterUrl,
       totalImages: remoteImages.length,
       images: remoteImages.map((image) => image.url),
       capturedAt: new Date().toISOString()
     });
 
     if (!config.eventsJson) {
-      console.log(`[preview chapter] ${chapter.title} (${remoteImages.length} images)`);
+      console.log(`[preview chapter] ${chapterTitle} (${remoteImages.length} images)`);
     }
 
     emitJsonEvent(config, {
