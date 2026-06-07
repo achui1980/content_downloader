@@ -82,6 +82,47 @@ describe("parseDownloaderEventLine", () => {
     });
   });
 
+  test("parses and sanitizes preview.chapterDetail events", () => {
+    const parsed = parseDownloaderEventLine(
+      JSON.stringify({
+        type: "preview.chapterDetail",
+        chapterTitle: "  Chapter 1  ",
+        chapterUrl: " https://www.2025copy.com/comic/slug/chapter-1 ",
+        totalImages: 999,
+        images: [
+          "https://img.example/1.webp",
+          "  ",
+          "https://img.example/2.webp"
+        ]
+      })
+    );
+
+    expect(parsed).toEqual({
+      type: "preview.chapterDetail",
+      chapterTitle: "Chapter 1",
+      chapterUrl: "https://www.2025copy.com/comic/slug/chapter-1",
+      totalImages: 2,
+      images: [
+        "https://img.example/1.webp",
+        "https://img.example/2.webp"
+      ]
+    });
+  });
+
+  test("returns null for invalid preview.chapterDetail payload", () => {
+    expect(
+      parseDownloaderEventLine(
+        JSON.stringify({
+          type: "preview.chapterDetail",
+          chapterTitle: "",
+          chapterUrl: "https://www.2025copy.com/comic/slug/chapter-1",
+          totalImages: 1,
+          images: ["https://img.example/1.webp"]
+        })
+      )
+    ).toBeNull();
+  });
+
   test("parses preview lifecycle events", () => {
     expect(parseDownloaderEventLine(JSON.stringify({ type: "preview.start" }))).toEqual({
       type: "preview.start"

@@ -13,6 +13,14 @@ export type DownloaderEvent =
       chapterUrl: string;
       images: string[];
     }
+  | {
+      type: "preview.chapterDetail";
+      chapterTitle: string;
+      chapterUrl: string;
+      totalImages: number;
+      images: string[];
+      capturedAt?: string;
+    }
   | { type: "chapter.start"; index: number; totalChapters: number; chapterTitle?: string }
   | { type: "chapter.done"; index: number; totalChapters: number; status?: string }
   | {
@@ -31,6 +39,7 @@ const EVENT_TYPES = new Set([
   "preview.done",
   "preview.error",
   "preview.chapter",
+  "preview.chapterDetail",
   "chapter.start",
   "chapter.done",
   "image.written"
@@ -38,6 +47,15 @@ const EVENT_TYPES = new Set([
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function sanitizeNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function parseDownloaderEventLine(line: string): DownloaderEvent | null {
@@ -119,6 +137,36 @@ export function parseDownloaderEventLine(line: string): DownloaderEvent | null {
       chapterTitle: parsed.chapterTitle,
       chapterUrl: parsed.chapterUrl,
       images: parsed.images
+    };
+  }
+
+  if (parsed.type === "preview.chapterDetail") {
+    if (
+      typeof parsed.totalImages !== "number" ||
+      !Number.isFinite(parsed.totalImages) ||
+      parsed.totalImages < 0 ||
+      !Array.isArray(parsed.images) ||
+      parsed.images.some((image) => typeof image !== "string")
+    ) {
+      return null;
+    }
+
+    const chapterTitle = sanitizeNonEmptyString(parsed.chapterTitle);
+    const chapterUrl = sanitizeNonEmptyString(parsed.chapterUrl);
+    if (!chapterTitle || !chapterUrl) {
+      return null;
+    }
+
+    const images = parsed.images.map((image) => image.trim()).filter((image) => image.length > 0);
+    const capturedAt = sanitizeNonEmptyString(parsed.capturedAt) ?? undefined;
+
+    return {
+      type: "preview.chapterDetail",
+      chapterTitle,
+      chapterUrl,
+      totalImages: images.length,
+      images,
+      capturedAt
     };
   }
 

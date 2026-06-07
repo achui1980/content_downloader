@@ -7,6 +7,11 @@ import {
 import {
   createPreviewSession
 } from "./preview-session.js";
+import {
+  requestPreviewChapterDetail,
+  type PreviewChapterDetail,
+  type PreviewChapterDetailRequestInput
+} from "./preview-chapter-request.js";
 import type { PreviewChapterEvent, PreviewInput, PreviewLogEvent, PreviewStatusEvent, StartInput } from "../shared/contracts.js";
 
 interface IpcSender {
@@ -59,6 +64,7 @@ export interface RegisterDownloadIpcDeps {
   ipcMain: IpcMainLike;
   session?: DownloadSessionLike;
   previewSession?: PreviewSessionLike;
+  previewChapterRequest?: (input: PreviewChapterDetailRequestInput) => Promise<PreviewChapterDetail>;
   dialog: DialogLike;
   shell: ShellLike;
 }
@@ -66,6 +72,7 @@ export interface RegisterDownloadIpcDeps {
 export function registerDownloadIpcHandlers(deps: RegisterDownloadIpcDeps): void {
   const session = deps.session ?? createDownloadSession();
   const previewSession = deps.previewSession ?? createPreviewSession();
+  const previewChapterRequest = deps.previewChapterRequest ?? requestPreviewChapterDetail;
   let currentTaskId: string | null = null;
   let currentPreviewTaskId: string | null = null;
 
@@ -155,6 +162,15 @@ export function registerDownloadIpcHandlers(deps: RegisterDownloadIpcDeps): void
     previewSession.stop();
     currentPreviewTaskId = null;
     return { stopped: true };
+  });
+
+  deps.ipcMain.handle("preview:loadChapter", async (_event, payload) => {
+    const input = payload as PreviewChapterDetailRequestInput;
+    if (typeof input?.chapterUrl !== "string" || input.chapterUrl.trim().length === 0) {
+      throw new Error("Chapter URL is required");
+    }
+
+    return previewChapterRequest({ chapterUrl: input.chapterUrl });
   });
 
   deps.ipcMain.handle("dialog:selectOutputDir", async () => {
