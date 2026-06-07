@@ -54,6 +54,7 @@ export type AppAction =
       images: string[];
     }
   | { type: "previewLog"; taskId: string; source: "stdout" | "stderr"; line: string }
+  | { type: "clientLog"; line: string }
   | { type: "setActiveChapter"; chapterUrl: string }
   | { type: "toggleChapterSelection"; chapterUrl: string }
   | { type: "previewClientError"; message: string };
@@ -170,6 +171,13 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       logs: [...state.logs, `[preview:${action.source}] ${action.line}`]
+    };
+  }
+
+  if (action.type === "clientLog") {
+    return {
+      ...state,
+      logs: [...state.logs, `[ui] ${action.line}`]
     };
   }
 

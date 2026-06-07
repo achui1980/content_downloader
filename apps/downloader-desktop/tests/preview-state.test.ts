@@ -131,4 +131,31 @@ describe("preview state", () => {
     expect(next.previewChapters[0]?.chapterUrl).toBe("https://www.2025copy.com/comic/slug/1");
     expect(next.selectedChapterUrls).toEqual(["https://www.2025copy.com/comic/slug/1"]);
   });
+
+  test("maps preview stopped to ready when preview chapters exist", () => {
+    const withChapter = reduceAppState(
+      reduceAppState(createInitialAppState(), {
+        type: "previewStarted",
+        taskId: "preview-4"
+      }),
+      {
+        type: "previewChapter",
+        taskId: "preview-4",
+        index: 1,
+        totalChapters: 1,
+        chapterTitle: "Chapter 1",
+        chapterUrl: "https://www.2025copy.com/comic/slug/1",
+        images: []
+      }
+    );
+
+    const stopped = reduceAppState(withChapter, {
+      type: "previewStatus",
+      taskId: "preview-4",
+      state: "stopped"
+    });
+
+    expect(stopped.previewStatus).toBe("ready");
+    expect(stopped.previewError).toBeNull();
+  });
 });

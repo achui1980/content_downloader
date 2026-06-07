@@ -6,6 +6,8 @@ interface DownloadFormProps {
   isPreviewing: boolean;
   hasApi: boolean;
   canStart: boolean;
+  canDownloadAll?: boolean;
+  canDownloadSelected?: boolean;
   canPreview: boolean;
   selectedChapterCount: number;
   previewMaxChapters: number;
@@ -16,14 +18,17 @@ interface DownloadFormProps {
   onChangePreviewImagesPerChapter: (value: number) => void;
   onStartPreview: () => void;
   onStopPreview: () => void;
-  onSubmit: () => void;
+  onDownloadAll?: () => void;
+  onDownloadSelected?: () => void;
+  onSubmit?: () => void;
   onStop: () => void;
   onSelectOutputDir: () => void;
   onOpenOutputDir: () => void;
 }
 
 export function DownloadForm(props: DownloadFormProps) {
-  const startDisabled = props.isRunning || props.isPreviewing || !props.hasApi || !props.canStart;
+  const downloadAllDisabled = props.isRunning || !props.hasApi || !(props.canDownloadAll ?? props.canStart);
+  const downloadSelectedDisabled = props.isRunning || !props.hasApi || !(props.canDownloadSelected ?? props.canStart);
   const previewDisabled = props.isRunning || props.isPreviewing || !props.hasApi || !props.canPreview;
 
   return (
@@ -38,6 +43,7 @@ export function DownloadForm(props: DownloadFormProps) {
           <input
             id="download-url"
             className="input"
+            type="url"
             value={props.values.url}
             onChange={(event) => props.onChange("url", event.target.value)}
             placeholder="https://www.2025copy.com/comic/slug"
@@ -57,7 +63,10 @@ export function DownloadForm(props: DownloadFormProps) {
             type="number"
             min={1}
             value={props.previewMaxChapters}
-            onChange={(event) => props.onChangePreviewMaxChapters(Number(event.target.value) || 1)}
+            onChange={(event) => {
+              const nextValue = event.target.valueAsNumber;
+              props.onChangePreviewMaxChapters(Number.isNaN(nextValue) ? props.previewMaxChapters : nextValue);
+            }}
             disabled={props.isRunning || props.isPreviewing}
           />
         </div>
@@ -72,7 +81,10 @@ export function DownloadForm(props: DownloadFormProps) {
             type="number"
             min={1}
             value={props.previewImagesPerChapter}
-            onChange={(event) => props.onChangePreviewImagesPerChapter(Number(event.target.value) || 1)}
+            onChange={(event) => {
+              const nextValue = event.target.valueAsNumber;
+              props.onChangePreviewImagesPerChapter(Number.isNaN(nextValue) ? props.previewImagesPerChapter : nextValue);
+            }}
             disabled={props.isRunning || props.isPreviewing}
           />
         </div>
@@ -117,7 +129,10 @@ export function DownloadForm(props: DownloadFormProps) {
             type="number"
             min={1}
             value={props.values.concurrency}
-            onChange={(event) => props.onChange("concurrency", Number(event.target.value) || 1)}
+            onChange={(event) => {
+              const nextValue = event.target.valueAsNumber;
+              props.onChange("concurrency", Number.isNaN(nextValue) ? props.values.concurrency : nextValue);
+            }}
             disabled={props.isRunning}
           />
         </div>
@@ -132,14 +147,17 @@ export function DownloadForm(props: DownloadFormProps) {
             type="number"
             min={0}
             value={props.values.retries}
-            onChange={(event) => props.onChange("retries", Number(event.target.value) || 0)}
+            onChange={(event) => {
+              const nextValue = event.target.valueAsNumber;
+              props.onChange("retries", Number.isNaN(nextValue) ? props.values.retries : nextValue);
+            }}
             disabled={props.isRunning}
           />
         </div>
       </div>
 
       {props.validationErrors.length > 0 ? (
-        <ul className="validation-errors" role="alert">
+        <ul className="validation-errors" role="status" aria-live="polite">
           {props.validationErrors.map((error) => (
             <li key={error}>{error}</li>
           ))}
@@ -147,7 +165,20 @@ export function DownloadForm(props: DownloadFormProps) {
       ) : null}
 
       <div className="button-row">
-        <button type="button" className="button button--primary" onClick={props.onSubmit} disabled={startDisabled}>
+        <button
+          type="button"
+          className="button button--primary"
+          onClick={props.onDownloadAll ?? props.onSubmit}
+          disabled={downloadAllDisabled}
+        >
+          Download All
+        </button>
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={props.onDownloadSelected ?? props.onSubmit}
+          disabled={downloadSelectedDisabled}
+        >
           Download Selected ({props.selectedChapterCount})
         </button>
         <button type="button" className="button button--secondary" onClick={props.onStop} disabled={!props.isRunning}>

@@ -9,6 +9,7 @@ import { ProgressPanel } from "./components/ProgressPanel";
 import { LogPanel } from "./components/LogPanel";
 import { ResultPanel } from "./components/ResultPanel";
 import { createInitialAppState, reduceAppState } from "./state";
+import { resolveDownloadScope, type DownloadRequestMode } from "./download-scope";
 
 declare global {
   interface Window {
@@ -23,11 +24,10 @@ export function App() {
   const [previewMaxChapters, setPreviewMaxChapters] = useState(5);
   const [previewImagesPerChapter, setPreviewImagesPerChapter] = useState(6);
   const api = window.downloader;
-  const startPayload: StartInput = {
+  const baseStartValidation = validateStartInput({
     ...input,
-    selectedChapterUrls: state.selectedChapterUrls
-  };
-  const validation = validateStartInput(startPayload);
+    selectedChapterUrls: ["placeholder"]
+  });
   const previewValidation = validatePreviewInput({
     url: input.url,
     previewMaxChapters,
@@ -116,7 +116,7 @@ export function App() {
     }));
   }
 
-  async function handleStart(): Promise<void> {
+  async function handleDownload(mode: DownloadRequestMode): Promise<void> {
     setHasTriedStart(true);
 
     if (!api) {
@@ -124,29 +124,65 @@ export function App() {
       return;
     }
 
-    if (state.previewStatus === "previewing") {
-      dispatch({ type: "error", message: "Stop preview before starting download." });
-      return;
-    }
-
-    const validationResult = validateStartInput(startPayload);
+    const resolvedScope = resolveDownloadScope(mode, state.selectedChapterUrls);
+    const payload: StartInput = {
+      ...input,
+      selectedChapterUrls: resolvedScope.selectedChapterUrls
+    };
+    const validationResult = validateStartInput({
+      ...payload,
+      selectedChapterUrls: payload.selectedChapterUrls.length > 0 ? payload.selectedChapterUrls : ["placeholder"]
+    });
     if (!validationResult.ok) {
       dispatch({ type: "error", message: validationResult.errors[0] ?? "Invalid download parameters" });
       return;
     }
 
+    if (state.previewStatus === "previewing") {
+      if (!state.previewTaskId) {
+        dispatch({ type: "error", message: "Preview is running but no preview task is available to stop." });
+        return;
+      }
+
+      try {
+        const stopResult = await api.stopPreview(state.previewTaskId);
+        if (!stopResult.stopped) {
+          dispatch({ type: "error", message: "Stop preview failed. Download was not started." });
+          return;
+        }
+
+        dispatch({ type: "previewStatus", taskId: state.previewTaskId, state: "stopped" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to stop preview";
+        dispatch({ type: "error", message: `Failed to stop preview before download: ${message}` });
+        return;
+      }
+    }
+
     const taskId = `task-${Date.now()}`;
     dispatch({ type: "started", taskId });
 
+    if (resolvedScope.fallbackToAll) {
+      dispatch({ type: "clientLog", line: "No chapters selected. Falling back to Download All." });
+    }
+
     try {
       await api.startDownload({
-        ...startPayload,
+        ...payload,
         taskId
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to start download";
       dispatch({ type: "error", message });
     }
+  }
+
+  async function handleDownloadAll(): Promise<void> {
+    await handleDownload("all");
+  }
+
+  async function handleDownloadSelected(): Promise<void> {
+    await handleDownload("selected");
   }
 
   async function handleStartPreview(): Promise<void> {
@@ -263,18 +299,21 @@ export function App() {
             hasApi={Boolean(api)}
             isRunning={state.status === "running"}
             isPreviewing={state.previewStatus === "previewing"}
-            canStart={validation.ok}
+            canStart={baseStartValidation.ok}
+            canDownloadAll={baseStartValidation.ok}
+            canDownloadSelected={baseStartValidation.ok}
             canPreview={previewValidation.ok}
             selectedChapterCount={state.selectedChapterUrls.length}
             previewMaxChapters={previewMaxChapters}
             previewImagesPerChapter={previewImagesPerChapter}
-            validationErrors={hasTriedStart ? validation.errors : []}
+            validationErrors={hasTriedStart ? baseStartValidation.errors : []}
             onChange={updateInput}
             onChangePreviewMaxChapters={setPreviewMaxChapters}
             onChangePreviewImagesPerChapter={setPreviewImagesPerChapter}
             onStartPreview={handleStartPreview}
             onStopPreview={handleStopPreview}
-            onSubmit={handleStart}
+            onDownloadAll={handleDownloadAll}
+            onDownloadSelected={handleDownloadSelected}
             onStop={handleStop}
             onSelectOutputDir={handleSelectOutputDir}
             onOpenOutputDir={handleOpenOutputDir}

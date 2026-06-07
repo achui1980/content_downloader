@@ -102,4 +102,26 @@ describe("renderer app state", () => {
     expect(next.taskId).toBeNull();
     expect(next.previewStatus).toBe("previewing");
   });
+
+  test("allows start after preview is stopped", () => {
+    const previewing = reduceAppState(createInitialAppState(), {
+      type: "previewStarted",
+      taskId: "preview-active"
+    });
+
+    const previewStopped = reduceAppState(previewing, {
+      type: "previewStatus",
+      taskId: "preview-active",
+      state: "stopped"
+    });
+
+    const started = reduceAppState(previewStopped, {
+      type: "started",
+      taskId: "task-after-stop"
+    });
+
+    expect(previewStopped.previewStatus).toBe("idle");
+    expect(started.status).toBe("running");
+    expect(started.taskId).toBe("task-after-stop");
+  });
 });
