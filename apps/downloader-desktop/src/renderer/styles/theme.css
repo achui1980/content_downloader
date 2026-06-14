@@ -516,9 +516,50 @@ code {
   max-height: calc(100vh - 290px);
 }
 
+.reader-zoom-control {
+  display: grid;
+  gap: 6px;
+}
+
+.reader-zoom-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.reader-zoom-options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reader-zoom-option {
+  border: 1px solid rgba(120, 149, 217, 0.28);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(18, 28, 43, 0.92);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.reader-zoom-option[aria-pressed="true"] {
+  border-color: rgba(98, 187, 255, 0.52);
+  background: rgba(84, 184, 255, 0.18);
+}
+
+.reader-zoom-option--active {
+  border-color: rgba(98, 187, 255, 0.52);
+  background: rgba(84, 184, 255, 0.18);
+}
+
 .reader-image-frame {
   flex-shrink: 0;
   width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
   border-radius: 12px;
   border: 1px solid rgba(120, 149, 217, 0.24);
   background: rgba(4, 8, 14, 0.64);

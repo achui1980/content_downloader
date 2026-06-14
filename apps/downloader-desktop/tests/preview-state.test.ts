@@ -4,6 +4,19 @@ import { describe, expect, test } from "vitest";
 import { createInitialAppState, reduceAppState } from "../src/renderer/state";
 
 describe("preview state", () => {
+  test("starts with the default reader zoom preset", () => {
+    expect(createInitialAppState().readerZoom).toBe(85);
+  });
+
+  test("updates reader zoom when the user picks another preset", () => {
+    const next = reduceAppState(createInitialAppState(), {
+      type: "setReaderZoom",
+      zoom: 70
+    });
+
+    expect(next.readerZoom).toBe(70);
+  });
+
   test("starts in catalog mode with no saved reader positions", () => {
     const state = createInitialAppState();
 

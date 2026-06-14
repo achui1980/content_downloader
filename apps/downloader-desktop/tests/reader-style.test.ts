@@ -20,7 +20,15 @@ describe("reader styles", () => {
   test("keeps chapter image frames from shrinking in vertical stream", () => {
     const css = readFileSync("src/renderer/styles/theme.css", "utf8");
 
-    expectSelectorBlock(css, ".reader-image-frame", ["flex-shrink: 0;"]);
+    expectSelectorBlock(css, ".reader-image-frame", ["flex-shrink: 0;", "max-width: 100%;", "margin-inline: auto;"]);
+  });
+
+  test("defines zoom control selector styles", () => {
+    const css = readFileSync("src/renderer/styles/theme.css", "utf8");
+
+    expectSelectorBlock(css, ".reader-zoom-control", ["display: grid;", "gap: 6px;"]);
+    expectSelectorBlock(css, ".reader-zoom-options", ["display: inline-flex;", "gap: 6px;"]);
+    expectSelectorBlock(css, ".reader-zoom-option--active", ["border-color:", "background:"]);
   });
 
   test("defines reader-first stage layout selectors", () => {

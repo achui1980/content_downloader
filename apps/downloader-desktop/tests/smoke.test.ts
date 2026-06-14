@@ -69,6 +69,24 @@ function renderDownloadForm(props: Parameters<typeof DownloadForm>[0]) {
   };
 }
 
+function renderReaderPanel(props: Parameters<typeof ReaderPanel>[0]) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  flushSync(() => {
+    root.render(createElement(ReaderPanel, props));
+  });
+
+  return {
+    container,
+    cleanup: () => {
+      root.unmount();
+      container.remove();
+    }
+  };
+}
+
 function createMockDownloaderApi(): DownloaderPreloadApi {
   return {
     startDownload: vi.fn(async () => ({ taskId: "task-mock" })),
@@ -245,7 +263,9 @@ describe("desktop baseline", () => {
         onBackToSetup: () => {},
         onStopPreview: () => {},
         onOpenPreviousChapter: () => {},
-        onOpenNextChapter: () => {}
+        onOpenNextChapter: () => {},
+        readerZoom: 85,
+        onReaderZoomChange: () => {}
       })
     );
 
@@ -256,6 +276,64 @@ describe("desktop baseline", () => {
     expect(markup).toContain("Up next");
     expect(markup).toContain("Chapter 2");
     expect(markup).toContain("Open next chapter");
+  });
+
+  test("ReaderPanel keeps the zoom control in the header and marks the active zoom", () => {
+    const { container, cleanup } = renderReaderPanel({
+          isReaderStage: true,
+          previewStatus: "ready",
+          activeChapter: {
+            index: 1,
+            totalChapters: 2,
+          chapterTitle: "Chapter 1",
+          chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+          images: ["https://img/preview-1.jpg"]
+        },
+        chapterDetailStatus: "success",
+        chapterDetail: {
+          chapterTitle: "Chapter 1",
+          chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+          totalImages: 2,
+          images: ["https://img/full-1.jpg", "https://img/full-2.jpg"]
+        },
+        chapterDetailError: null,
+        previewError: null,
+        previousChapter: null,
+        nextChapter: {
+          index: 2,
+          totalChapters: 2,
+          chapterTitle: "Chapter 2",
+          chapterUrl: "https://www.2025copy.com/comic/example/chapter-2",
+          images: ["https://img/preview-2.jpg"]
+        },
+        scrollContainerRef: createRef<HTMLDivElement>(),
+        onReaderScroll: () => {},
+        onRetry: () => {},
+        onBackToSetup: () => {},
+        onStopPreview: () => {},
+          onOpenPreviousChapter: () => {},
+          onOpenNextChapter: () => {},
+          readerZoom: 85,
+          onReaderZoomChange: () => {}
+    });
+
+    try {
+      const header = container.querySelector(".reader-panel-header");
+      const zoomControl = container.querySelector(".reader-zoom-control");
+
+      expect(header).not.toBeNull();
+      expect(zoomControl).not.toBeNull();
+      expect(header?.contains(zoomControl)).toBe(true);
+      expect(zoomControl?.textContent).toContain("Page size");
+      expect(zoomControl?.textContent).toContain("70%");
+      expect(zoomControl?.textContent).toContain("85%");
+      expect(zoomControl?.textContent).toContain("100%");
+      expect(zoomControl?.querySelector('.reader-zoom-option[aria-pressed="false"]')?.textContent).toBe("70%");
+      expect(zoomControl?.querySelector('.reader-zoom-option--active[aria-pressed="true"]')?.textContent).toBe("85%");
+      expect(zoomControl?.querySelectorAll('.reader-zoom-option[aria-pressed="false"]').item(1)?.textContent).toBe("100%");
+    } finally {
+      cleanup();
+    }
   });
 
   test("ReaderPanel keeps recovery controls visible when preview fails during reader-stage usage", () => {
@@ -293,13 +371,16 @@ describe("desktop baseline", () => {
         onBackToSetup: () => {},
         onStopPreview: () => {},
         onOpenPreviousChapter: () => {},
-        onOpenNextChapter: () => {}
+        onOpenNextChapter: () => {},
+        readerZoom: 85,
+        onReaderZoomChange: () => {}
       })
     );
 
     expect(markup).toContain("Preview stream failed");
     expect(markup).toContain("Back to setup");
     expect(markup).toContain("Next chapter");
+    expect(markup).toContain('aria-pressed="true"');
   });
 
   test("DownloadForm uses onSubmit fallback when dedicated handlers are undefined", () => {
@@ -1650,6 +1731,120 @@ describe("desktop baseline", () => {
       });
       expect(container.textContent).toContain("Chapter 2");
       expect(container.querySelectorAll(".reader-image")).toHaveLength(1);
+    } finally {
+      root.unmount();
+      container.remove();
+      window.downloader = previousApi;
+    }
+  });
+
+  test("App applies the selected reader zoom to loaded reader images", async () => {
+    const previewHandlers: Array<(event: { taskId: string; index: number; totalChapters: number; chapterTitle: string; chapterUrl: string; images: string[] }) => void> = [];
+    const statusHandlers: Array<(event: { taskId: string; state: "starting" | "running" | "done" | "failed" | "stopped"; message?: string }) => void> = [];
+
+    const api: DownloaderPreloadApi = {
+      startDownload: vi.fn(async () => ({ taskId: "task-mock" })),
+      stopDownload: vi.fn(async () => ({ stopped: true })),
+      startPreview: vi.fn(async () => ({ taskId: "preview-mock" })),
+      stopPreview: vi.fn(async () => ({ stopped: true })),
+      loadPreviewChapter: vi.fn(async () => ({
+        chapterTitle: "Chapter 1",
+        chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+        totalImages: 2,
+        images: ["https://img/full-1.jpg", "https://img/full-2.jpg"]
+      })),
+      selectOutputDir: vi.fn(async () => null),
+      openOutputDir: vi.fn(async () => null),
+      onProgress: vi.fn(() => () => {}),
+      onLog: vi.fn(() => () => {}),
+      onStatus: vi.fn(() => () => {}),
+      onPreviewLog: vi.fn(() => () => {}),
+      onPreviewChapter: vi.fn((handler) => {
+        previewHandlers.push(handler);
+        return () => {
+          const index = previewHandlers.indexOf(handler);
+          if (index >= 0) {
+            previewHandlers.splice(index, 1);
+          }
+        };
+      }),
+      onPreviewStatus: vi.fn((handler) => {
+        statusHandlers.push(handler);
+        return () => {
+          const index = statusHandlers.indexOf(handler);
+          if (index >= 0) {
+            statusHandlers.splice(index, 1);
+          }
+        };
+      })
+    };
+
+    const previousApi = window.downloader;
+    window.downloader = api;
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    flushSync(() => {
+      root.render(createElement(App));
+    });
+
+    try {
+      const previewButton = Array.from(container.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Preview Chapters");
+      if (!previewButton) {
+        throw new Error("Preview Chapters button not found");
+      }
+
+      previewButton.click();
+      await Promise.resolve();
+
+      const previewTaskId = (api.startPreview as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.taskId;
+      if (!previewTaskId) {
+        throw new Error("Preview task id not captured");
+      }
+
+      previewHandlers.forEach((handler) => {
+        handler({
+          taskId: previewTaskId,
+          index: 1,
+          totalChapters: 1,
+          chapterTitle: "Chapter 1",
+          chapterUrl: "https://www.2025copy.com/comic/example/chapter-1",
+          images: ["https://img/preview-1.jpg"]
+        });
+      });
+      statusHandlers.forEach((handler) => {
+        handler({ taskId: previewTaskId, state: "done" });
+      });
+      await Promise.resolve();
+
+      const chapterButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button.chapter-row")).find(
+        (node) => node.textContent?.trim() === "Chapter 1"
+      );
+      if (!chapterButton) {
+        throw new Error("Chapter 1 button not found");
+      }
+
+      chapterButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const zoomButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+        (node) => node.textContent?.trim() === "70%"
+      );
+      if (!zoomButton) {
+        throw new Error("70% zoom button not found");
+      }
+
+      zoomButton.click();
+      await Promise.resolve();
+
+      const firstFrame = container.querySelector<HTMLElement>(".reader-image-frame");
+      if (!firstFrame) {
+        throw new Error("Reader image frame not found");
+      }
+
+      expect(firstFrame.getAttribute("style")).toContain("width: 70%");
     } finally {
       root.unmount();
       container.remove();
