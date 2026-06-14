@@ -581,6 +581,66 @@ code {
   background: rgba(12, 18, 30, 0.82);
 }
 
+.app-shell--reader-stage.app-shell--immersive .app-header {
+  display: none;
+}
+
+.app-shell--reader-stage.app-shell--immersive .reader-grid-col--chapters {
+  display: none;
+}
+
+.app-shell--reader-stage.app-shell--immersive .reader-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell--reader-stage.app-shell--immersive .reader-image-stream {
+  max-height: calc(100vh - 120px);
+}
+
+.app-shell--reader-stage.app-shell--immersive .reader-actions--endcap {
+  display: none;
+}
+
+.reader-immersive-anchor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  z-index: 99;
+  pointer-events: none;
+}
+
+.reader-panel-header--immersive {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+  transition: opacity 300ms ease, transform 300ms ease;
+  background: rgba(11, 15, 20, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(120, 149, 217, 0.18);
+}
+
+.reader-panel-header--immersive-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.reader-immersive-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+}
+
 @media (max-width: 920px) {
   .app-shell--reader-stage {
     padding-top: 12px;

@@ -1,4 +1,4 @@
-import type { Ref, UIEventHandler } from "react";
+import { useState, type Ref, type UIEventHandler } from "react";
 import { type ChapterDetailStatus, type PreviewChapter, type PreviewStatus, type ReaderZoom, readerZoomLevels } from "../state";
 
 interface ReaderPanelProps {
@@ -25,12 +25,15 @@ interface ReaderPanelProps {
   navigationDisabled?: boolean;
   readerZoom: ReaderZoom;
   onReaderZoomChange: (zoom: ReaderZoom) => void;
+  immersiveReader?: boolean;
+  onToggleImmersive?: () => void;
   onOpenPreviousChapter: () => void;
   onOpenNextChapter: () => void;
   onRetry: () => void;
 }
 
 export function ReaderPanel(props: ReaderPanelProps) {
+  const [immersiveHeaderVisible, setImmersiveHeaderVisible] = useState(false);
   const activeTitle = props.chapterDetail?.chapterTitle ?? props.activeChapter?.chapterTitle ?? "Reader";
   const hasReaderContent =
     props.chapterDetailStatus === "loading" ||
@@ -40,9 +43,20 @@ export function ReaderPanel(props: ReaderPanelProps) {
       props.chapterDetail.chapterUrl === props.activeChapter?.chapterUrl);
 
   function renderReaderFrame(content: JSX.Element) {
+    const immersiveHeaderClass =
+      props.immersiveReader
+        ? `reader-panel-header reader-panel-header--immersive${immersiveHeaderVisible ? " reader-panel-header--immersive-visible" : ""}`
+        : "reader-panel-header";
     return (
       <section className="card card--reader">
-        <div className="reader-panel-header">
+        {props.immersiveReader ? (
+          <div
+            className="reader-immersive-anchor"
+            onMouseEnter={() => setImmersiveHeaderVisible(true)}
+            onMouseLeave={() => setImmersiveHeaderVisible(false)}
+          />
+        ) : null}
+        <div className={immersiveHeaderClass}>
           <div>
             <p className="reader-placeholder">Reader</p>
             <p className="reader-placeholder">Reading now</p>
@@ -64,6 +78,24 @@ export function ReaderPanel(props: ReaderPanelProps) {
               ))}
             </div>
           </div>
+          {props.onToggleImmersive ? (
+            <button
+              type="button"
+              className="button button--ghost reader-immersive-toggle"
+              aria-label={props.immersiveReader ? "Exit fullscreen" : "Enter fullscreen"}
+              onClick={props.onToggleImmersive}
+            >
+              {props.immersiveReader ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M6 2h8v8M2 6h8M10 14H2V6M14 10V2H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </button>
+          ) : null}
           <div className="reader-actions">
             <button type="button" className="button button--secondary" onClick={props.onBackToSetup}>
               Back to setup

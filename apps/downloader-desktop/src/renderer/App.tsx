@@ -25,6 +25,7 @@ export function App() {
   const [previewMaxChapters, setPreviewMaxChapters] = useState(5);
   const [previewImagesPerChapter, setPreviewImagesPerChapter] = useState(6);
   const [forceSetupStage, setForceSetupStage] = useState(false);
+  const [immersiveReader, setImmersiveReader] = useState(false);
   const chapterDetailRequestSeq = useRef(0);
   const chapterDetailLoadInFlightRef = useRef<string | null>(null);
   const readerScrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -156,6 +157,23 @@ export function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isReaderStage) {
+      return;
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && immersiveReader) {
+        setImmersiveReader(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isReaderStage, immersiveReader]);
 
   function resetPendingReaderScroll(): void {
     pendingReaderScrollRef.current = null;
@@ -450,7 +468,7 @@ export function App() {
   }
 
   return (
-    <main className={`app-shell ${isReaderStage ? "app-shell--reader-stage" : "app-shell--setup-stage"}`}>
+    <main className={`app-shell ${isReaderStage ? "app-shell--reader-stage" : "app-shell--setup-stage"}${immersiveReader ? " app-shell--immersive" : ""}`}>
       <header className="app-header">
         <div>
           <h1>Downloader Desktop</h1>
@@ -498,6 +516,8 @@ export function App() {
                   onReaderScroll={handleReaderScroll}
                   readerZoom={state.readerZoom}
                   onReaderZoomChange={(zoom) => dispatch({ type: "setReaderZoom", zoom })}
+                  immersiveReader={immersiveReader}
+                  onToggleImmersive={() => setImmersiveReader((prev) => !prev)}
                   onBackToSetup={handleReturnToSetup}
                   onStopPreview={handleStopPreview}
                   canStopPreview={state.previewStatus === "previewing"}
@@ -576,6 +596,8 @@ export function App() {
                 onReaderScroll={handleReaderScroll}
                 readerZoom={state.readerZoom}
                 onReaderZoomChange={(zoom) => dispatch({ type: "setReaderZoom", zoom })}
+                immersiveReader={false}
+                onToggleImmersive={() => {}}
                 onBackToSetup={handleReturnToSetup}
                 onStopPreview={handleStopPreview}
                 canStopPreview={state.previewStatus === "previewing"}
