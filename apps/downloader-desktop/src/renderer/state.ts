@@ -2,7 +2,7 @@ export type AppStatus = "idle" | "running" | "done" | "error" | "stopped";
 export type PreviewStatus = "idle" | "previewing" | "ready" | "failed";
 export type ChapterDetailStatus = "idle" | "loading" | "success" | "error";
 export type ReaderMode = "catalog" | "reading";
-export const readerZoomLevels = [70, 85, 100] as const;
+export const readerZoomLevels = [50, 70, 85, 100] as const;
 export type ReaderZoom = (typeof readerZoomLevels)[number];
 
 export interface PreviewChapter {

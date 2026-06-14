@@ -325,12 +325,14 @@ describe("desktop baseline", () => {
       expect(zoomControl).not.toBeNull();
       expect(header?.contains(zoomControl)).toBe(true);
       expect(zoomControl?.textContent).toContain("Page size");
+      expect(zoomControl?.textContent).toContain("50%");
       expect(zoomControl?.textContent).toContain("70%");
       expect(zoomControl?.textContent).toContain("85%");
       expect(zoomControl?.textContent).toContain("100%");
-      expect(zoomControl?.querySelector('.reader-zoom-option[aria-pressed="false"]')?.textContent).toBe("70%");
+      expect(zoomControl?.querySelector('.reader-zoom-option[aria-pressed="false"]')?.textContent).toBe("50%");
       expect(zoomControl?.querySelector('.reader-zoom-option--active[aria-pressed="true"]')?.textContent).toBe("85%");
-      expect(zoomControl?.querySelectorAll('.reader-zoom-option[aria-pressed="false"]').item(1)?.textContent).toBe("100%");
+      expect(zoomControl?.querySelectorAll('.reader-zoom-option[aria-pressed="false"]').item(1)?.textContent).toBe("70%");
+      expect(zoomControl?.querySelectorAll('.reader-zoom-option[aria-pressed="false"]').item(2)?.textContent).toBe("100%");
     } finally {
       cleanup();
     }
