@@ -3,6 +3,7 @@ export type DownloadRequestMode = "all" | "selected";
 export interface DownloadScopeResult {
   selectedChapterUrls: string[];
   fallbackToAll: boolean;
+  errorMessage?: string;
 }
 
 export function resolveDownloadScope(
@@ -19,7 +20,8 @@ export function resolveDownloadScope(
   if (selectedChapterUrls.length === 0) {
     return {
       selectedChapterUrls: [],
-      fallbackToAll: true
+      fallbackToAll: false,
+      errorMessage: "Select at least one chapter before downloading selected chapters."
     };
   }
 

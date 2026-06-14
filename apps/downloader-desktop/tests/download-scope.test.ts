@@ -27,12 +27,13 @@ describe("resolveDownloadScope", () => {
     });
   });
 
-  test("returns fallback to all for selected mode when urls are empty", () => {
+  test("returns an explicit error for selected mode when urls are empty", () => {
     const result = resolveDownloadScope("selected", []);
 
     expect(result).toEqual({
       selectedChapterUrls: [],
-      fallbackToAll: true
+      fallbackToAll: false,
+      errorMessage: "Select at least one chapter before downloading selected chapters."
     });
   });
 });

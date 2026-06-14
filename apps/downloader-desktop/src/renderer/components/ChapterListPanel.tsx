@@ -5,6 +5,7 @@ interface ChapterListPanelProps {
   selectedChapterUrls: string[];
   activeChapterUrl: string | null;
   selectionLocked: boolean;
+  chapterActionDisabled?: boolean;
   onToggleChapter: (chapterUrl: string) => void;
   onSelectChapter: (chapterUrl: string) => void;
 }
@@ -14,14 +15,15 @@ export function ChapterListPanel(props: ChapterListPanelProps) {
 
   return (
     <section className="card card--chapter-list">
-      <h2>Chapters</h2>
-      <p className="chapter-list-meta">
-        Selected {props.selectedChapterUrls.length} / {props.chapters.length}
+      <h2>Chapter Navigator</h2>
+      <p className="chapter-list-meta">Choose from {props.chapters.length} previewed chapters.</p>
+      <p className="chapter-list-help">Choose a chapter title to open it in the reader.</p>
+      <p className="chapter-list-help">
+        Selected for download: {props.selectedChapterUrls.length} / {props.chapters.length}
       </p>
-      <p className="chapter-list-help">Click a chapter title to load full pages in the reader.</p>
-      <ul className="chapter-list" aria-label="Preview chapters">
+      <ul className="chapter-list" aria-label="Chapter navigator">
         {props.chapters.length === 0 ? (
-          <li className="chapter-list-empty">Run preview to load chapters.</li>
+          <li className="chapter-list-empty">Preview chapters to build your reading list.</li>
         ) : null}
         {props.chapters.map((chapter) => {
           const isActive = chapter.chapterUrl === props.activeChapterUrl;
@@ -42,14 +44,12 @@ export function ChapterListPanel(props: ChapterListPanelProps) {
                 type="button"
                 className={`chapter-row${isActive ? " chapter-row--active" : ""}`}
                 onClick={() => props.onSelectChapter(chapter.chapterUrl)}
+                disabled={props.chapterActionDisabled}
                 aria-current={isActive ? "true" : undefined}
                 title="Load full chapter"
               >
                 <span className="chapter-title">{chapter.chapterTitle}</span>
               </button>
-              <a className="chapter-open-link" href={chapter.chapterUrl} target="_blank" rel="noreferrer">
-                Open
-              </a>
             </li>
           );
         })}

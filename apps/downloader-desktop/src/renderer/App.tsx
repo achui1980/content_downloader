@@ -10,6 +10,7 @@ import { LogPanel } from "./components/LogPanel";
 import { ResultPanel } from "./components/ResultPanel";
 import { createInitialAppState, reduceAppState } from "./state";
 import { resolveDownloadScope, type DownloadRequestMode } from "./download-scope";
+import { getAdjacentChapterUrls } from "./reader-navigation";
 
 declare global {
   interface Window {
@@ -23,8 +24,15 @@ export function App() {
   const [hasTriedStart, setHasTriedStart] = useState(false);
   const [previewMaxChapters, setPreviewMaxChapters] = useState(5);
   const [previewImagesPerChapter, setPreviewImagesPerChapter] = useState(6);
+  const [forceSetupStage, setForceSetupStage] = useState(false);
   const chapterDetailRequestSeq = useRef(0);
+  const chapterDetailLoadInFlightRef = useRef<string | null>(null);
+  const readerScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const readerScrollFrameRef = useRef<number | null>(null);
+  const pendingReaderScrollRef = useRef<{ chapterUrl: string; position: number } | null>(null);
+  const latestStateRef = useRef(state);
   const api = window.downloader;
+  latestStateRef.current = state;
   const baseStartValidation = validateStartInput({
     ...input,
     selectedChapterUrls: ["placeholder"]
@@ -35,6 +43,17 @@ export function App() {
     previewImagesPerChapter
   });
   const activeChapter = state.previewChapters.find((chapter) => chapter.chapterUrl === state.activeChapterUrl) ?? null;
+  const adjacentChapterUrls = state.activeChapterUrl
+    ? getAdjacentChapterUrls(state.previewChapters, state.activeChapterUrl)
+    : { previousChapterUrl: null, nextChapterUrl: null };
+  const previousChapter = adjacentChapterUrls.previousChapterUrl
+    ? state.previewChapters.find((chapter) => chapter.chapterUrl === adjacentChapterUrls.previousChapterUrl) ?? null
+    : null;
+  const nextChapter = adjacentChapterUrls.nextChapterUrl
+    ? state.previewChapters.find((chapter) => chapter.chapterUrl === adjacentChapterUrls.nextChapterUrl) ?? null
+    : null;
+  const isReaderStage =
+    !forceSetupStage && (state.chapterDetailStatus === "loading" || state.chapterDetailStatus === "error" || state.readerMode === "reading");
 
   function nextChapterDetailRequestId(): string {
     chapterDetailRequestSeq.current += 1;
@@ -114,12 +133,68 @@ export function App() {
     };
   }, [api]);
 
+  useEffect(() => {
+    if (state.chapterDetailStatus !== "success" || !state.chapterDetail || !state.pendingRestoreChapterUrl) {
+      return;
+    }
+
+    if (state.pendingRestoreChapterUrl !== state.chapterDetail.chapterUrl) {
+      return;
+    }
+
+    if (readerScrollContainerRef.current) {
+      readerScrollContainerRef.current.scrollTop = state.readerPositions[state.pendingRestoreChapterUrl] ?? 0;
+    }
+
+    dispatch({ type: "readerPositionRestored", chapterUrl: state.pendingRestoreChapterUrl });
+  }, [state.chapterDetail, state.chapterDetailStatus, state.pendingRestoreChapterUrl, state.readerPositions]);
+
+  useEffect(() => {
+    return () => {
+      if (readerScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(readerScrollFrameRef.current);
+      }
+    };
+  }, []);
+
+  function resetPendingReaderScroll(): void {
+    pendingReaderScrollRef.current = null;
+
+    if (readerScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(readerScrollFrameRef.current);
+      readerScrollFrameRef.current = null;
+    }
+  }
+
+  function clearChapterDetailLoadGate(): void {
+    chapterDetailLoadInFlightRef.current = null;
+  }
+
   function updateInput(field: keyof StartInput, value: string | number): void {
     setHasTriedStart(false);
+
+    if (field === "url" && value !== input.url) {
+      resetPendingReaderScroll();
+      clearChapterDetailLoadGate();
+      dispatch({ type: "previewInvalidated" });
+    }
+
     setInput((prev) => ({
       ...prev,
       [field]: value
     }));
+  }
+
+  async function previewAlreadySettled(): Promise<boolean> {
+    // Let any already-fired preview terminal event update renderer state before treating stop=false as a failure.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      if (latestStateRef.current.previewStatus !== "previewing") {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   async function handleDownload(mode: DownloadRequestMode): Promise<void> {
@@ -131,6 +206,11 @@ export function App() {
     }
 
     const resolvedScope = resolveDownloadScope(mode, state.selectedChapterUrls);
+    if (resolvedScope.errorMessage) {
+      dispatch({ type: "error", message: resolvedScope.errorMessage });
+      return;
+    }
+
     const payload: StartInput = {
       ...input,
       selectedChapterUrls: resolvedScope.selectedChapterUrls
@@ -145,19 +225,22 @@ export function App() {
     }
 
     if (state.previewStatus === "previewing") {
-      if (!state.previewTaskId) {
+      const previewTaskId = state.previewTaskId;
+      if (!previewTaskId) {
         dispatch({ type: "error", message: "Preview is running but no preview task is available to stop." });
         return;
       }
 
       try {
-        const stopResult = await api.stopPreview(state.previewTaskId);
+        const stopResult = await api.stopPreview(previewTaskId);
         if (!stopResult.stopped) {
-          dispatch({ type: "error", message: "Stop preview failed. Download was not started." });
-          return;
+          if (!(await previewAlreadySettled())) {
+            dispatch({ type: "error", message: "Stop preview failed. Download was not started." });
+            return;
+          }
+        } else {
+          dispatch({ type: "previewStatus", taskId: previewTaskId, state: "stopped" });
         }
-
-        dispatch({ type: "previewStatus", taskId: state.previewTaskId, state: "stopped" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to stop preview";
         dispatch({ type: "error", message: `Failed to stop preview before download: ${message}` });
@@ -209,6 +292,8 @@ export function App() {
     }
 
     const taskId = `preview-${Date.now()}`;
+    resetPendingReaderScroll();
+    clearChapterDetailLoadGate();
     dispatch({ type: "previewStarted", taskId });
 
     try {
@@ -227,13 +312,18 @@ export function App() {
       return;
     }
 
+    const previewTaskId = state.previewTaskId;
+
     try {
-      const result = await api.stopPreview(state.previewTaskId);
+      const result = await api.stopPreview(previewTaskId);
       if (result.stopped) {
-        dispatch({ type: "previewStatus", taskId: state.previewTaskId, state: "stopped" });
+        dispatch({ type: "previewStatus", taskId: previewTaskId, state: "stopped" });
         return;
       }
-      dispatch({ type: "previewClientError", message: "Stop preview failed" });
+
+      if (!(await previewAlreadySettled())) {
+        dispatch({ type: "previewClientError", message: "Stop preview failed" });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to stop preview";
       dispatch({ type: "previewClientError", message });
@@ -246,7 +336,13 @@ export function App() {
       return;
     }
 
+    if (chapterDetailLoadInFlightRef.current) {
+      return;
+    }
+
     const requestId = nextChapterDetailRequestId();
+    chapterDetailLoadInFlightRef.current = requestId;
+    setForceSetupStage(false);
     dispatch({ type: "previewChapterDetailLoading", requestId, chapterUrl });
 
     try {
@@ -255,6 +351,10 @@ export function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load full chapter";
       dispatch({ type: "previewChapterDetailError", requestId, message });
+    } finally {
+      if (chapterDetailLoadInFlightRef.current === requestId) {
+        chapterDetailLoadInFlightRef.current = null;
+      }
     }
   }
 
@@ -263,6 +363,48 @@ export function App() {
       return;
     }
     await handleLoadChapter(state.activeChapterUrl);
+  }
+
+  async function handleLoadAdjacentChapter(chapterUrl: string | null): Promise<void> {
+    if (!chapterUrl) {
+      return;
+    }
+    await handleLoadChapter(chapterUrl);
+  }
+
+  function handleReturnToSetup(): void {
+    resetPendingReaderScroll();
+    clearChapterDetailLoadGate();
+    setForceSetupStage(true);
+    dispatch({ type: "setReaderMode", mode: "catalog" });
+  }
+
+  function handleReaderScroll(): void {
+    if (!state.activeChapterUrl || !readerScrollContainerRef.current) {
+      return;
+    }
+
+    pendingReaderScrollRef.current = {
+      chapterUrl: state.activeChapterUrl,
+      position: readerScrollContainerRef.current.scrollTop
+    };
+
+    if (readerScrollFrameRef.current !== null) {
+      return;
+    }
+
+    readerScrollFrameRef.current = window.requestAnimationFrame(() => {
+      readerScrollFrameRef.current = null;
+      if (!pendingReaderScrollRef.current) {
+        return;
+      }
+
+      dispatch({
+        type: "readerPositionChanged",
+        chapterUrl: pendingReaderScrollRef.current.chapterUrl,
+        position: pendingReaderScrollRef.current.position
+      });
+    });
   }
 
   async function handleStop(): Promise<void> {
@@ -308,7 +450,7 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${isReaderStage ? "app-shell--reader-stage" : "app-shell--setup-stage"}`}>
       <header className="app-header">
         <div>
           <h1>Downloader Desktop</h1>
@@ -323,61 +465,129 @@ export function App() {
         </section>
       ) : null}
 
-      <section className="control-row">
-        <div className="control-col">
-          <DownloadForm
-            values={input}
-            hasApi={Boolean(api)}
-            isRunning={state.status === "running"}
-            isPreviewing={state.previewStatus === "previewing"}
-            canStart={baseStartValidation.ok}
-            canDownloadAll={baseStartValidation.ok}
-            canDownloadSelected={baseStartValidation.ok}
-            canPreview={previewValidation.ok}
-            selectedChapterCount={state.selectedChapterUrls.length}
-            previewMaxChapters={previewMaxChapters}
-            previewImagesPerChapter={previewImagesPerChapter}
-            validationErrors={hasTriedStart ? baseStartValidation.errors : []}
-            onChange={updateInput}
-            onChangePreviewMaxChapters={setPreviewMaxChapters}
-            onChangePreviewImagesPerChapter={setPreviewImagesPerChapter}
-            onStartPreview={handleStartPreview}
-            onStopPreview={handleStopPreview}
-            onDownloadAll={handleDownloadAll}
-            onDownloadSelected={handleDownloadSelected}
-            onStop={handleStop}
-            onSelectOutputDir={handleSelectOutputDir}
-            onOpenOutputDir={handleOpenOutputDir}
-          />
-        </div>
-      </section>
+      {isReaderStage ? (
+        <div className="app-stage app-stage--reader">
+          <div className="reader-stage-shell">
+            <div className="reader-grid">
+              <div className="reader-grid-col reader-grid-col--chapters">
+                <ChapterListPanel
+                  chapters={state.previewChapters}
+                   selectedChapterUrls={state.selectedChapterUrls}
+                   activeChapterUrl={state.activeChapterUrl}
+                   selectionLocked={state.status === "running"}
+                   chapterActionDisabled={state.chapterDetailStatus === "loading"}
+                   onToggleChapter={(chapterUrl) => dispatch({ type: "toggleChapterSelection", chapterUrl })}
+                   onSelectChapter={(chapterUrl) => {
+                     void handleLoadChapter(chapterUrl);
+                  }}
+                />
+              </div>
 
-      <section className="reader-grid">
-        <div className="reader-grid-col reader-grid-col--chapters">
-          <ChapterListPanel
-            chapters={state.previewChapters}
-            selectedChapterUrls={state.selectedChapterUrls}
-            activeChapterUrl={state.activeChapterUrl}
-            selectionLocked={state.status === "running"}
-            onToggleChapter={(chapterUrl) => dispatch({ type: "toggleChapterSelection", chapterUrl })}
-            onSelectChapter={(chapterUrl) => {
-              void handleLoadChapter(chapterUrl);
-            }}
-          />
+              <div className="reader-grid-col reader-grid-col--reader">
+                <ReaderPanel
+                  isReaderStage={true}
+                  previewStatus={state.previewStatus}
+                  activeChapter={activeChapter}
+                  chapterDetailStatus={state.chapterDetailStatus}
+                  chapterDetail={state.chapterDetail}
+                  chapterDetailError={state.chapterDetailError}
+                  previewError={state.previewError}
+                  previousChapter={previousChapter}
+                  nextChapter={nextChapter}
+                  scrollContainerRef={readerScrollContainerRef}
+                  onReaderScroll={handleReaderScroll}
+                   onBackToSetup={handleReturnToSetup}
+                   onStopPreview={handleStopPreview}
+                   canStopPreview={state.previewStatus === "previewing"}
+                   navigationDisabled={state.chapterDetailStatus === "loading"}
+                   onOpenPreviousChapter={() => {
+                     void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
+                   }}
+                  onOpenNextChapter={() => {
+                    void handleLoadAdjacentChapter(nextChapter?.chapterUrl ?? null);
+                  }}
+                  onRetry={handleRetryCurrentChapter}
+                />
+              </div>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="app-stage app-stage--setup">
+          <section className="control-row">
+            <div className="control-col">
+              <DownloadForm
+                values={input}
+                hasApi={Boolean(api)}
+                isRunning={state.status === "running"}
+                isPreviewing={state.previewStatus === "previewing"}
+                canStart={baseStartValidation.ok}
+                canDownloadAll={baseStartValidation.ok}
+                canDownloadSelected={baseStartValidation.ok && state.selectedChapterUrls.length > 0}
+                canPreview={previewValidation.ok}
+                selectedChapterCount={state.selectedChapterUrls.length}
+                previewMaxChapters={previewMaxChapters}
+                previewImagesPerChapter={previewImagesPerChapter}
+                previewValidationErrors={previewValidation.ok ? [] : previewValidation.errors}
+                validationErrors={hasTriedStart ? baseStartValidation.errors : []}
+                onChange={updateInput}
+                onChangePreviewMaxChapters={setPreviewMaxChapters}
+                onChangePreviewImagesPerChapter={setPreviewImagesPerChapter}
+                onStartPreview={handleStartPreview}
+                onStopPreview={handleStopPreview}
+                onDownloadAll={handleDownloadAll}
+                onDownloadSelected={handleDownloadSelected}
+                onStop={handleStop}
+                onSelectOutputDir={handleSelectOutputDir}
+                onOpenOutputDir={handleOpenOutputDir}
+              />
+            </div>
+          </section>
 
-        <div className="reader-grid-col reader-grid-col--reader">
-          <ReaderPanel
-            previewStatus={state.previewStatus}
-            activeChapter={activeChapter}
-            chapterDetailStatus={state.chapterDetailStatus}
-            chapterDetail={state.chapterDetail}
-            chapterDetailError={state.chapterDetailError}
-            previewError={state.previewError}
-            onRetry={handleRetryCurrentChapter}
-          />
+          <section className="reader-grid">
+            <div className="reader-grid-col reader-grid-col--chapters">
+              <ChapterListPanel
+                chapters={state.previewChapters}
+                 selectedChapterUrls={state.selectedChapterUrls}
+                 activeChapterUrl={state.activeChapterUrl}
+                 selectionLocked={state.status === "running"}
+                 chapterActionDisabled={state.chapterDetailStatus === "loading"}
+                 onToggleChapter={(chapterUrl) => dispatch({ type: "toggleChapterSelection", chapterUrl })}
+                 onSelectChapter={(chapterUrl) => {
+                   void handleLoadChapter(chapterUrl);
+                }}
+              />
+            </div>
+
+            <div className="reader-grid-col reader-grid-col--reader">
+              <ReaderPanel
+                isReaderStage={false}
+                previewStatus={state.previewStatus}
+                activeChapter={activeChapter}
+                chapterDetailStatus={state.chapterDetailStatus}
+                chapterDetail={state.chapterDetail}
+                chapterDetailError={state.chapterDetailError}
+                previewError={state.previewError}
+                previousChapter={previousChapter}
+                nextChapter={nextChapter}
+                scrollContainerRef={readerScrollContainerRef}
+                onReaderScroll={handleReaderScroll}
+                 onBackToSetup={handleReturnToSetup}
+                 onStopPreview={handleStopPreview}
+                 canStopPreview={state.previewStatus === "previewing"}
+                 navigationDisabled={state.chapterDetailStatus === "loading"}
+                 onOpenPreviousChapter={() => {
+                   void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
+                 }}
+                onOpenNextChapter={() => {
+                  void handleLoadAdjacentChapter(nextChapter?.chapterUrl ?? null);
+                }}
+                onRetry={handleRetryCurrentChapter}
+              />
+            </div>
+          </section>
         </div>
-      </section>
+      )}
 
       <section className="status-row">
         <div className="status-row-col">

@@ -1,6 +1,7 @@
 export type AppStatus = "idle" | "running" | "done" | "error" | "stopped";
 export type PreviewStatus = "idle" | "previewing" | "ready" | "failed";
 export type ChapterDetailStatus = "idle" | "loading" | "success" | "error";
+export type ReaderMode = "catalog" | "reading";
 
 export interface PreviewChapter {
   index: number;
@@ -20,6 +21,9 @@ export interface AppState {
   previewStatus: PreviewStatus;
   previewTaskId: string | null;
   previewChapters: PreviewChapter[];
+  readerMode: ReaderMode;
+  readerPositions: Record<string, number>;
+  pendingRestoreChapterUrl: string | null;
   activeChapterUrl: string | null;
   selectedChapterUrls: string[];
   previewError: string | null;
@@ -49,6 +53,7 @@ export type AppAction =
   | { type: "progress"; taskId: string; index: number; totalChapters: number; status: "started" | "done" }
   | { type: "log"; taskId: string; source: "stdout" | "stderr"; line: string }
   | { type: "previewStarted"; taskId: string }
+  | { type: "previewInvalidated" }
   | {
       type: "previewStatus";
       taskId: string;
@@ -66,6 +71,9 @@ export type AppAction =
     }
   | { type: "previewLog"; taskId: string; source: "stdout" | "stderr"; line: string }
   | { type: "clientLog"; line: string }
+  | { type: "setReaderMode"; mode: ReaderMode }
+  | { type: "readerPositionChanged"; chapterUrl: string; position: number }
+  | { type: "readerPositionRestored"; chapterUrl: string }
   | { type: "setActiveChapter"; chapterUrl: string }
   | { type: "previewChapterDetailLoading"; requestId: string; chapterUrl: string }
   | {
@@ -98,6 +106,9 @@ export function createInitialAppState(): AppState {
     previewStatus: "idle",
     previewTaskId: null,
     previewChapters: [],
+    readerMode: "catalog",
+    readerPositions: {},
+    pendingRestoreChapterUrl: null,
     activeChapterUrl: null,
     selectedChapterUrls: [],
     previewError: null,
@@ -110,11 +121,37 @@ export function createInitialAppState(): AppState {
 
 export function reduceAppState(state: AppState, action: AppAction): AppState {
   if (action.type === "previewStarted") {
+    if (state.status === "running") {
+      return state;
+    }
+
     return {
       ...state,
       previewStatus: "previewing",
       previewTaskId: action.taskId,
       previewChapters: [],
+      readerMode: "catalog",
+      readerPositions: {},
+      pendingRestoreChapterUrl: null,
+      activeChapterUrl: null,
+      selectedChapterUrls: [],
+      previewError: null,
+      chapterDetailStatus: "idle",
+      chapterDetailRequestId: null,
+      chapterDetail: null,
+      chapterDetailError: null
+    };
+  }
+
+  if (action.type === "previewInvalidated") {
+    return {
+      ...state,
+      previewStatus: "idle",
+      previewTaskId: null,
+      previewChapters: [],
+      readerMode: "catalog",
+      readerPositions: {},
+      pendingRestoreChapterUrl: null,
       activeChapterUrl: null,
       selectedChapterUrls: [],
       previewError: null,
@@ -135,6 +172,7 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
       activeChapterUrl: action.chapterUrl,
       chapterDetailStatus: "loading",
       chapterDetailRequestId: action.requestId,
+      pendingRestoreChapterUrl: null,
       chapterDetail: null,
       chapterDetailError: null
     };
@@ -146,7 +184,10 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     }
     return {
       ...state,
+      readerMode: "reading",
       chapterDetailStatus: "success",
+      chapterDetailRequestId: null,
+      pendingRestoreChapterUrl: action.detail.chapterUrl,
       chapterDetail: {
         ...action.detail,
         images: action.detail.images.filter((image) => image.trim().length > 0)
@@ -162,6 +203,7 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       chapterDetailStatus: "error",
+      chapterDetailRequestId: null,
       chapterDetail: null,
       chapterDetailError: action.message
     };
@@ -255,6 +297,46 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     };
   }
 
+  if (action.type === "setReaderMode") {
+    if (action.mode === "catalog") {
+      return {
+        ...state,
+        readerMode: action.mode,
+        pendingRestoreChapterUrl: null,
+        chapterDetailStatus: "idle",
+        chapterDetailRequestId: null,
+        chapterDetail: null,
+        chapterDetailError: null
+      };
+    }
+
+    return {
+      ...state,
+      readerMode: action.mode
+    };
+  }
+
+  if (action.type === "readerPositionChanged") {
+    return {
+      ...state,
+      readerPositions: {
+        ...state.readerPositions,
+        [action.chapterUrl]: action.position
+      }
+    };
+  }
+
+  if (action.type === "readerPositionRestored") {
+    if (state.pendingRestoreChapterUrl !== action.chapterUrl) {
+      return state;
+    }
+
+    return {
+      ...state,
+      pendingRestoreChapterUrl: null
+    };
+  }
+
   if (action.type === "setActiveChapter") {
     const exists = state.previewChapters.some((chapter) => chapter.chapterUrl === action.chapterUrl);
     if (!exists) {
@@ -263,6 +345,7 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       activeChapterUrl: action.chapterUrl,
+      pendingRestoreChapterUrl: null,
       chapterDetailStatus: "idle",
       chapterDetailRequestId: null,
       chapterDetail: null,
