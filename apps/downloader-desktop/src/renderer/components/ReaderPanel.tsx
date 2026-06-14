@@ -1,5 +1,5 @@
 import type { Ref, UIEventHandler } from "react";
-import type { ChapterDetailStatus, PreviewChapter, PreviewStatus } from "../state";
+import { type ChapterDetailStatus, type PreviewChapter, type PreviewStatus, type ReaderZoom, readerZoomLevels } from "../state";
 
 interface ReaderPanelProps {
   isReaderStage: boolean;
@@ -23,6 +23,8 @@ interface ReaderPanelProps {
   onStopPreview: () => void;
   canStopPreview?: boolean;
   navigationDisabled?: boolean;
+  readerZoom: ReaderZoom;
+  onReaderZoomChange: (zoom: ReaderZoom) => void;
   onOpenPreviousChapter: () => void;
   onOpenNextChapter: () => void;
   onRetry: () => void;
@@ -45,6 +47,22 @@ export function ReaderPanel(props: ReaderPanelProps) {
             <p className="reader-placeholder">Reader</p>
             <p className="reader-placeholder">Reading now</p>
             <h2>{activeTitle}</h2>
+          </div>
+          <div className="reader-zoom-control">
+            <span className="reader-zoom-label">Page size</span>
+            <div className="reader-zoom-options">
+              {readerZoomLevels.map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={level === props.readerZoom ? "reader-zoom-option reader-zoom-option--active" : "reader-zoom-option"}
+                  aria-pressed={level === props.readerZoom}
+                  onClick={() => props.onReaderZoomChange(level)}
+                >
+                  {level}%
+                </button>
+              ))}
+            </div>
           </div>
           <div className="reader-actions">
             <button type="button" className="button button--secondary" onClick={props.onBackToSetup}>
@@ -163,7 +181,7 @@ export function ReaderPanel(props: ReaderPanelProps) {
     <>
       <div className="reader-image-stream" ref={props.scrollContainerRef} onScroll={props.onReaderScroll}>
         {chapterDetail.images.map((image, index) => (
-          <div key={`${chapterDetail.chapterUrl}-${index}`} className="reader-image-frame">
+          <div key={`${chapterDetail.chapterUrl}-${index}`} className="reader-image-frame" style={{ width: `${props.readerZoom}%` }}>
             <img
               src={image}
               alt={`${chapterDetail.chapterTitle} page ${index + 1}`}

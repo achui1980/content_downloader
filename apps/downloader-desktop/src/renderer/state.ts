@@ -2,6 +2,8 @@ export type AppStatus = "idle" | "running" | "done" | "error" | "stopped";
 export type PreviewStatus = "idle" | "previewing" | "ready" | "failed";
 export type ChapterDetailStatus = "idle" | "loading" | "success" | "error";
 export type ReaderMode = "catalog" | "reading";
+export const readerZoomLevels = [70, 85, 100] as const;
+export type ReaderZoom = (typeof readerZoomLevels)[number];
 
 export interface PreviewChapter {
   index: number;
@@ -22,6 +24,7 @@ export interface AppState {
   previewTaskId: string | null;
   previewChapters: PreviewChapter[];
   readerMode: ReaderMode;
+  readerZoom: ReaderZoom;
   readerPositions: Record<string, number>;
   pendingRestoreChapterUrl: string | null;
   activeChapterUrl: string | null;
@@ -72,6 +75,7 @@ export type AppAction =
   | { type: "previewLog"; taskId: string; source: "stdout" | "stderr"; line: string }
   | { type: "clientLog"; line: string }
   | { type: "setReaderMode"; mode: ReaderMode }
+  | { type: "setReaderZoom"; zoom: ReaderZoom }
   | { type: "readerPositionChanged"; chapterUrl: string; position: number }
   | { type: "readerPositionRestored"; chapterUrl: string }
   | { type: "setActiveChapter"; chapterUrl: string }
@@ -107,6 +111,7 @@ export function createInitialAppState(): AppState {
     previewTaskId: null,
     previewChapters: [],
     readerMode: "catalog",
+    readerZoom: 85,
     readerPositions: {},
     pendingRestoreChapterUrl: null,
     activeChapterUrl: null,
@@ -313,6 +318,13 @@ export function reduceAppState(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       readerMode: action.mode
+    };
+  }
+
+  if (action.type === "setReaderZoom") {
+    return {
+      ...state,
+      readerZoom: action.zoom
     };
   }
 

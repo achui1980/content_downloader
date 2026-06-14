@@ -496,13 +496,15 @@ export function App() {
                   nextChapter={nextChapter}
                   scrollContainerRef={readerScrollContainerRef}
                   onReaderScroll={handleReaderScroll}
-                   onBackToSetup={handleReturnToSetup}
-                   onStopPreview={handleStopPreview}
-                   canStopPreview={state.previewStatus === "previewing"}
-                   navigationDisabled={state.chapterDetailStatus === "loading"}
-                   onOpenPreviousChapter={() => {
-                     void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
-                   }}
+                  readerZoom={state.readerZoom}
+                  onReaderZoomChange={(zoom) => dispatch({ type: "setReaderZoom", zoom })}
+                  onBackToSetup={handleReturnToSetup}
+                  onStopPreview={handleStopPreview}
+                  canStopPreview={state.previewStatus === "previewing"}
+                  navigationDisabled={state.chapterDetailStatus === "loading"}
+                  onOpenPreviousChapter={() => {
+                    void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
+                  }}
                   onOpenNextChapter={() => {
                     void handleLoadAdjacentChapter(nextChapter?.chapterUrl ?? null);
                   }}
@@ -572,13 +574,15 @@ export function App() {
                 nextChapter={nextChapter}
                 scrollContainerRef={readerScrollContainerRef}
                 onReaderScroll={handleReaderScroll}
-                 onBackToSetup={handleReturnToSetup}
-                 onStopPreview={handleStopPreview}
-                 canStopPreview={state.previewStatus === "previewing"}
-                 navigationDisabled={state.chapterDetailStatus === "loading"}
-                 onOpenPreviousChapter={() => {
-                   void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
-                 }}
+                readerZoom={state.readerZoom}
+                onReaderZoomChange={(zoom) => dispatch({ type: "setReaderZoom", zoom })}
+                onBackToSetup={handleReturnToSetup}
+                onStopPreview={handleStopPreview}
+                canStopPreview={state.previewStatus === "previewing"}
+                navigationDisabled={state.chapterDetailStatus === "loading"}
+                onOpenPreviousChapter={() => {
+                  void handleLoadAdjacentChapter(previousChapter?.chapterUrl ?? null);
+                }}
                 onOpenNextChapter={() => {
                   void handleLoadAdjacentChapter(nextChapter?.chapterUrl ?? null);
                 }}
